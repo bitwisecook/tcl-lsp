@@ -387,7 +387,7 @@ mod tests {
     use super::*;
     use crate::{
         Vm,
-        command::{Command, completion_from_tcl_error, opt_get},
+        command::{completion_from_tcl_error, opt_get},
     };
 
     #[test]
@@ -641,103 +641,6 @@ mod tests {
             assert_eq!(completion.code, code);
             assert!(completion.result.is_same_object(&result));
             assert!(completion.options.is_same_object(&options));
-        }
-    }
-
-    #[test]
-    fn expression_quotes_follow_selected_native_control_and_level_protocol() {
-        for engine in ["tcl9.0", "jim"] {
-            let mut vm = crate::native_fixture::interpreter(
-                tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
-            );
-            let source = "\"prefix [return -level 2 -code error -errorcode {X Y} -errorinfo ORIGINAL MESSAGE]\"";
-            let completion = vm.try_eval_expr(source).expect("guest quote completion");
-            if engine == "jim" {
-                assert_eq!(completion.code, Code::Ok);
-                assert_eq!(completion.result.string_bytes().as_ref(), b"prefix MESSAGE");
-                assert_eq!(
-                    opt_get(&completion.options, "-level")
-                        .expect("retained level")
-                        .as_int()
-                        .unwrap(),
-                    2
-                );
-                let snapshot = vm.completion_options_snapshot(&completion).unwrap();
-                assert_eq!(opt_get(&snapshot, "-code").unwrap().as_int().unwrap(), 0);
-                assert_eq!(opt_get(&snapshot, "-level").unwrap().as_int().unwrap(), 2);
-            } else {
-                assert_eq!(completion.code, Code::Return);
-                assert_eq!(completion.result.string_bytes().as_ref(), b"MESSAGE");
-                assert_eq!(
-                    opt_get(&completion.options, "-errorcode")
-                        .unwrap()
-                        .string_bytes()
-                        .as_ref(),
-                    b"X Y"
-                );
-                assert_eq!(
-                    opt_get(&completion.options, "-errorinfo")
-                        .unwrap()
-                        .string_bytes()
-                        .as_ref(),
-                    b"ORIGINAL"
-                );
-                let snapshot = vm.completion_options_snapshot(&completion).unwrap();
-                assert_eq!(opt_get(&snapshot, "-code").unwrap().as_int().unwrap(), 1);
-                assert_eq!(opt_get(&snapshot, "-level").unwrap().as_int().unwrap(), 2);
-            }
-        }
-    }
-
-    #[test]
-    fn typed_access_refusal_bypasses_catch_and_finally() {
-        fn refuse(vm: &mut Vm, _: &[Value]) -> tcl_runtime_api::Completion<Value> {
-            vm.set_var("reached", Value::int(1))
-                .expect("unobserved handler entry marker");
-            completion_from_tcl_error(
-                vm,
-                UnicodeAccessError {
-                    valid_up_to: 0,
-                    error_len: Some(1),
-                }
-                .into(),
-            )
-        }
-        for source in [
-            "catch {byte_refusal} caught; set after 1",
-            "try {byte_refusal} on error {m o} {set handled 1} finally {set final 1}; set after 1",
-            "after 0 byte_refusal; after 0 {set later 1}; update; set after 1",
-        ] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(
-                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
-            );
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::default(),
-            ));
-            vm.register_command("byte_refusal", Command::Builtin(refuse));
-            let refusal = vm.try_eval_source(source).expect_err("host access refusal");
-            assert_eq!(
-                refusal,
-                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(
-                    UnicodeAccessError {
-                        valid_up_to: 0,
-                        error_len: Some(1),
-                    }
-                    .into()
-                ),
-                "{source}"
-            );
-            assert_eq!(
-                vm.get_var("reached")
-                    .expect("actual refusing handler reached")
-                    .string_bytes()
-                    .as_ref(),
-                b"1"
-            );
-            for name in ["caught", "handled", "final", "later", "after"] {
-                assert!(vm.get_var(name).is_none(), "{source}: {name}");
-            }
         }
     }
 }

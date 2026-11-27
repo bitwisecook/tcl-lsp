@@ -183,57 +183,6 @@ mod tests {
     }
 
     #[test]
-    fn specialized_object_info_executes_original_operand_before_native_getter() {
-        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-            let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
-            let mut vm = crate::native_fixture::core(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
-            let result = vm.eval_source("::oo::object create O; set count 0; proc original {} {global count; incr count; return O}; proc c {} {info object class [original]}; proc n {} {info object namespace [original]}; proc i {} {info object isa object [original]}; list [c] [string match ::oo::* [n]] [i] $count").unwrap();
-            assert_eq!(
-                result.code,
-                Code::Ok,
-                "{engine}: {}",
-                result.result.to_str()
-            );
-            assert_eq!(
-                result.result.string_bytes().as_ref(),
-                b"::oo::object 1 1 3",
-                "{engine}"
-            );
-            if engine == "tcl9.1" {
-                let epoch = vm
-                    .eval_source("proc d {} {info object creationid [original]}; d")
-                    .unwrap();
-                assert_eq!(epoch.code, Code::Ok);
-                assert_eq!(epoch.result.native_object_type_name(), "int");
-            }
-        }
-    }
-
-    #[test]
-    fn string_nested_operand_geometry_preserves_quoted_options_and_repeated_calls() {
-        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
-            let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-            let mut vm = crate::native_fixture::interpreter(profile);
-            let source = r#"proc pick {x} {incr ::count; return $x}; set ::count 0; list [string match "*" [pick word]] [string equal -nocase [pick X] [pick x]] [string equal [pick x] [pick x]] [string length "[pick abc]"] $::count"#;
-            let result = vm.eval_source(source).unwrap();
-            assert_eq!(
-                result.code,
-                Code::Ok,
-                "{engine}: {}",
-                result.result.to_str()
-            );
-            assert_eq!(
-                result.result.string_bytes().as_ref(),
-                b"1 1 1 3 6",
-                "{engine}"
-            );
-        }
-    }
-
-    #[test]
     fn original_tcloo_info_bootstrap_preserves_private_ensemble_targets() {
         for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jimtcl"] {
             let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();

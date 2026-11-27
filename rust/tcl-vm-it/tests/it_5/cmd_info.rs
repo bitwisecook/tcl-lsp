@@ -17,3 +17,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod native_commands_tests;
+mod native_jim_inventory_tests;
+mod native_oo;
+mod tests;

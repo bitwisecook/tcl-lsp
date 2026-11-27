@@ -1342,26 +1342,6 @@ mod raw_value_tests {
     }
 
     #[test]
-    fn reached_host_refusal_cannot_initialise_or_write_an_increment_receiver() {
-        fn refuse(vm: &mut Vm, _: &[Value]) -> tcl_runtime_api::Completion<Value> {
-            vm.refuse_host_command("test native-access refusal".to_owned())
-        }
-        for version in tcl_dialect::TclVersion::ALL {
-            let mut vm = crate::native_fixture::interpreter(
-                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
-            );
-            vm.register("refuse", refuse);
-            vm.set_var("x", Value::int(10)).unwrap();
-            vm.add_var_trace("x", vec!["read".to_owned()], "refuse".to_owned(), false);
-            assert!(matches!(
-                vm.try_eval_source("incr x"),
-                Err(tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_))
-            ));
-            assert_eq!(vm.get_var("x").unwrap().string_bytes().as_ref(), b"10");
-        }
-    }
-
-    #[test]
     fn jim_array_read_bridge_preserves_distinct_raw_dictionary_keys() {
         use tcl_runtime_api::{ArrayElementRead, FrameId, VarStore};
         let mut vm = Vm::new();

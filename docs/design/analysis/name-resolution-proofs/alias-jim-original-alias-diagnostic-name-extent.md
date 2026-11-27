@@ -130,8 +130,8 @@ No implementation binding is claimed by this observation record.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 
-- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `original_result`: Retain the original public alias diagnostic completion/result window without reconstructing a native name slot or header from diagnostic bytes.
-- [rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm/src/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows` (linked): Two unchanged ASCII originals across six selected software cores compare all12 public code/result windows and require no Host cause. Jim registers only the binary byte producer; original C NOT_APPLICABLE branches remain. NUL, UTF8 e-acute and FF are evaluated binary-produced bytes, not source-character inputs.
+- [rust/tcl-vm-it/tests/it_5/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_info/native_jim_inventory_tests.rs), `original_result`: Retain the original public alias diagnostic completion/result window without reconstructing a native name slot or header from diagnostic bytes.
+- [rust/tcl-vm-it/tests/it_5/cmd_info/native_jim_inventory_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_info/native_jim_inventory_tests.rs), `cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows` (linked): Two unchanged ASCII originals across six selected software cores compare all12 public code/result windows and require no Host cause. Jim registers only the binary byte producer; original C NOT_APPLICABLE branches remain. NUL, UTF8 e-acute and FF are evaluated binary-produced bytes, not source-character inputs.
 
 No assertion outcome is attached to these source bindings; software outcomes retain their independently pinned command and image scope.
 

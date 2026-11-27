@@ -120,7 +120,7 @@ tcl9.1 9.1.0, revision `9.1.0`, `/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdI
 
 - [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `info_functions_impl`: Use the selected native fixed table or original script and actual helpers rather than a replacement nominal table.
 - [runtime/rust/src/cmd_info.rs](../../../../runtime/rust/src/cmd_info.rs), `info_functions`: Preserve the selected function script/table and actual native helper lookup under the current interpreter.
-- [rust/tcl-vm/src/cmd_info.rs](../../../../rust/tcl-vm/src/cmd_info.rs), `cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers` (linked): Compare the matched finite C source/result purposes through the actual selected VM/Runtime provider; this binding claims no Rust execution or physical byte/header/cache parity.
+- [rust/tcl-vm-it/tests/it_5/cmd_info/tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_info/tests.rs), `cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers` (linked): Compare the matched finite C source/result purposes through the actual selected VM/Runtime provider; this binding claims no Rust execution or physical byte/header/cache parity.
 - [runtime/rust/src/cmd_info.rs](../../../../runtime/rust/src/cmd_info.rs), `cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers` (linked): Compare the matched finite C source/result purposes through the actual selected VM/Runtime provider; this binding claims no Rust execution or physical byte/header/cache parity.
 
 ## Exact original-source349 software outcomes

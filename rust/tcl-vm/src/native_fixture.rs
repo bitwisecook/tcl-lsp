@@ -157,14 +157,3 @@ pub(crate) fn install_distribution(vm: &mut Vm) {
         vm.install_scripted_library(library);
     }
 }
-
-/// Select only the shared scripted dictionary library required by distribution
-/// specimens. Native core observers use `core` or `interpreter` independently.
-pub(crate) fn interpreter_with_dictionary_library(
-    profile: &'static tcl_dialect::DialectProfile,
-) -> Vm {
-    interpreter_with_scripted_libraries(
-        profile,
-        &[tcl_registry::native_scripted_distribution::NativeScriptedLibrary::Dictionary],
-    )
-}

@@ -1521,50 +1521,6 @@ mod original_format_scan_tests {
     }
 
     #[test]
-    fn original_binary_scan_trace_first_cause_stops_later_assignment() {
-        // naming.embedding.original-host-publication-and-fact-transport
-        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl8.6"));
-        vm.register("originalBinaryTrace", |vm, _| {
-            vm.refuse_host_command("binary assignment first Host".into())
-        });
-        assert!(
-            vm.add_var_trace_bytes_checked(
-                b"first",
-                vec!["write".into()],
-                &Value::string("originalBinaryTrace"),
-                false
-            )
-            .is_ok()
-        );
-        let scope = NativeOperationScope::enter(&mut vm).unwrap();
-        let completion = binary_scan(
-            &mut vm,
-            &[
-                Value::string("AB"),
-                Value::string("a1a1"),
-                Value::string("first"),
-                Value::string("later"),
-            ],
-        );
-        let first = vm.execution_refusal.clone().unwrap();
-        assert_eq!(
-            vm.finish_host_execution(completion)
-                .map_or_else(core::convert::identity, |value| {
-                    drop(value);
-                    panic!("original Host refusal")
-                }),
-            first
-        );
-        assert_eq!(scope.check_native(&mut vm).unwrap_err(), first);
-        assert!(vm.get_var_bytes(b"later").is_none());
-        assert!(matches!(
-            first,
-            tcl_runtime_api::NativeExecutionError::HostCommandRefusal(_)
-        ));
-    }
-    #[test]
     fn original_codec_binary_results_keep_recipe_for_format_and_scan_roundtrip() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md

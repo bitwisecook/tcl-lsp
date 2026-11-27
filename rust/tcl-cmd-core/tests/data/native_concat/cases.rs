@@ -108,23 +108,3 @@ fn row(engine: &str, case: usize, window: &str) -> Vec<&'static str> {
     )
     .collect()
 }
-const COMPILED_BODIES: [&[u8]; 8] = [
-    b"concat",
-    b"concat {}",
-    b"concat {} {}",
-    b"concat { } {\t}",
-    b"concat A",
-    b"concat {A B} C",
-    b"concat {A\\ } B",
-    b"concat {A\\\\ } B",
-];
-fn compiled_row(engine: &str, case: usize) -> Vec<&'static str> {
-    let prefix = format!("C\t{case}\tresult\t");
-    tcl_test_support::fixture::tsv_fields(
-        rows(engine)
-            .lines()
-            .find(|row| row.starts_with(&prefix))
-            .unwrap(),
-    )
-    .collect()
-}

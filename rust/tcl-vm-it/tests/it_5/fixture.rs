@@ -176,3 +176,9 @@ pub fn try_package(
 ) -> Result<tcl_runtime_api::Completion<tcl_vm::Value>, tcl_runtime_api::NativeExecutionError> {
     vm.try_invoke_command("package", arguments)
 }
+
+/// Evaluate `script` as a host does; a host refusal fails the test.
+pub fn eval(vm: &mut Vm, script: &str) -> tcl_runtime_api::Completion<tcl_vm::Value> {
+    vm.try_eval_source(script)
+        .unwrap_or_else(|refusal| panic!("{script}: {refusal:?}"))
+}

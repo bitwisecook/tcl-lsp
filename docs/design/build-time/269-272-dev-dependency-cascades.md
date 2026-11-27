@@ -727,3 +727,51 @@ expression workers directly, which needs no source compiler, and stay in
 - Also: a further core trial moved 3 more tests off the compiler, and batch
   3's count is corrected to 65 (measured as the drop in tests that reach a
   compiler, 547 to 482). No new failure in the lib and `it_5` suites.
+
+**Batch 6, the single-file tail (27 November 2026).** 64 tests in 21 files:
+54 move to `tcl-vm-it` under their old module paths, 1 stays on the core, 5
+are deleted, and 4 that the count listed only through a same-named helper
+needed nothing. Tests that reach a compiler drop from 445 to 381.
+- Frames and namespaces the tests pushed by hand are now procedures and
+  `namespace eval`; child interpreters are `interp create`/`eval`/`delete`,
+  with `register_child_native_command` for a host command in the child.
+  Commands go through `try_invoke_command`; byte-exact command names are
+  given by `rename` to a byte word and resumed through `eval` of a one-word
+  list. `fixture::eval` evaluates a script and fails on a host refusal.
+- Store confinement (`cmd_dict::tests`) is switched on from inside the
+  procedure by a host command that calls `set_stores_confined`.
+- Jim rows that needed `cmd_mathop`'s or `cmd_try`'s `NamespaceInfo` or
+  `NamespaceHelpers` library alone load the whole distribution: installing
+  one library is private. The two `cmd_info::native_jim_inventory_tests`
+  tests that need jimsh's `binary` skip their Jim rows (12 to 10 and 24 to
+  20 compared), as batch 2 did.
+- `error::tests::typed_access_refusal_bypasses_catch_and_finally` raises a
+  host-command refusal: the value-access refusal it raised is built through a
+  private adapter. Both are host refusals that `catch`, `try` and `after`
+  must not intercept.
+- Cut from rows: object types, reference counts, residency and identity
+  (`cmd_switch::native_jim`, `native_concat_tests`' expansion test,
+  `cmd_try`'s Jim message test, `cmd_array::original_argument_tests`), the
+  canonical return-options snapshot (`error::tests`), namespace and command
+  tokens (`embed::procedure_definition_tests`, now `namespace which`,
+  `namespace exists` and `info commands`), the timer-installed flag, the
+  queued script's identity and the compiler-policy value
+  (`retained_activation::tests`; the `ChangedPolicy` refusal stays), the
+  bytecode cache's context (`native_each_loop_tests`; the procedure and
+  `eval` outcomes stay), and in `cmd_array` the byte-only key half (written
+  through a private byte-key setter), the variable operation-reference probe
+  and the second refusal-latch probe.
+- Stays on the core: `subst::tests`' Jim scanner test. Its hex-escape and
+  continuation tests now call `subst -nocommands -novariables`.
+- `native_concat_tests`' compiled-body test keeps each capture's completion
+  code; its bodies and rows move from `native_concat/cases.rs` to
+  `compiled_cases.rs`, which `runtime/rust` and `tcl-vm-it` include.
+- Deleted, with no script-visible behaviour:
+  `cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows`
+  (object state at each physical window; the 120 completions stay),
+  `cmd_try::jim_reached_message_tests::software_stage_message_binding_observes_the_actual_result_after_clause_work`,
+  `…::software_stage_selected_names_keep_their_actual_headers_after_parent_shimmer`
+  and `…::software_stage_empty_selected_names_still_require_the_original_caller`
+  (the private clause parser and handler binder), and
+  `retained_activation::tests::retained_host_source_requires_the_original_explicit_activation`
+  (a private active-profile field and the receipt's private source policy).

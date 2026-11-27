@@ -24,6 +24,7 @@ use crate::{
 };
 use tcl_syntax::value::ValueOps;
 include!("../../../../rust/tcl-cmd-core/tests/data/native_concat/cases.rs");
+include!("../../../../rust/tcl-cmd-core/tests/data/native_concat/compiled_cases.rs");
 fn original(interp: &mut Interp, input: Input) -> obj::Owned {
     let protocol = interp.invocation_string_protocol().unwrap();
     obj::Owned::fresh(match input {

@@ -244,7 +244,6 @@ No original observation for this exact question is attached for this provider.
 ## Consumer bindings
 
 - [rust/tcl-vm/src/exec.rs](../../../../rust/tcl-vm/src/exec.rs), `refresh_each_loop_group`: Reissues current group views through the selected live/refetch protocol rather than caching a displayed list.
-- [rust/tcl-vm/src/cmd_control/native_each_loop_tests.rs](../../../../rust/tcl-vm/src/cmd_control/native_each_loop_tests.rs), `cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows` (linked): Includes all217 distinct shimmer snapshots and120 combined completions; real external pins and entered first-body getter are recreated separately.
 
 ## Evidence
 

@@ -19,3 +19,4 @@
 mod native_path_publication_tests;
 mod native_rmw_fixture_tests;
 mod scripted_tests;
+mod tests;

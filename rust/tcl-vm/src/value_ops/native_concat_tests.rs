@@ -143,47 +143,6 @@ fn original_concat_matches_all_twenty_native_windows_per_engine() {
     }
 }
 #[test]
-fn compiled_concat_preserves_all_eight_original_c_result_headers() {
-    for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        for (case, &body) in COMPILED_BODIES.iter().enumerate() {
-            let mut vm = crate::native_fixture::interpreter(
-                tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
-            );
-            let proc_head = Value::new_native_string_bytes(b"proc".as_slice());
-            let words = [
-                Value::new_native_string_bytes(b"p".as_slice()),
-                Value::new_native_string_bytes(b"".as_slice()),
-                Value::new_native_string_bytes(body),
-            ];
-            let definition = vm.invoke_host_original_object_vector(&proc_head, &words);
-            assert_eq!(
-                definition.code,
-                tcl_runtime_api::Code::Ok,
-                "{engine}/{case} definition {definition:?}"
-            );
-            drop(definition);
-            let head = Value::new_native_string_bytes(b"p".as_slice());
-            let result = vm.invoke_host_original_object_vector(&head, &[]);
-            let expected = compiled_row(engine, case);
-            assert_eq!(
-                result.code,
-                tcl_runtime_api::Code::Ok,
-                "{engine}/{case} {result:?}"
-            );
-            let version = vm.actual_native_invocation_dialect().tcl_version;
-            assert_eq!(
-                state(
-                    &result.result.native_object_snapshot(),
-                    result.result.native_object_reference_count(),
-                    version
-                ),
-                expected[4],
-                "{engine}/{case}"
-            );
-        }
-    }
-}
-#[test]
 fn string_concat_does_not_issue_a_canonical_list_guarantee() {
     for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let mut vm = crate::native_fixture::core(
@@ -204,69 +163,6 @@ fn string_concat_does_not_issue_a_canonical_list_guarantee() {
                 parsed,
                 Err(tcl_syntax::value::ValueError::NativeListParse { .. })
             ));
-        }
-    }
-}
-
-include!("../../../tcl-registry/tests/data/native_concat_expansion/cases.rs");
-fn expansion_cache_name(
-    cache: &tcl_syntax::native_object::NativeObjectCacheSnapshot,
-) -> &'static str {
-    use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
-    match cache {
-        Cache::None => "NULL",
-        Cache::String { .. } => "string",
-        other => panic!("unexpected actual expanded concat result {other:?}"),
-    }
-}
-#[test]
-fn compiled_concat_expansion_preserves_all_48_original_native_windows() {
-    for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-        for (case, body) in EXPANSION_BODIES.iter().enumerate() {
-            let mut vm = crate::native_fixture::interpreter(
-                tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
-            );
-            let proc_head = Value::new_native_string_bytes(b"proc".as_slice());
-            let words = [
-                Value::new_native_string_bytes(b"p".as_slice()),
-                Value::new_native_string_bytes(b"a c".as_slice()),
-                Value::new_native_string_bytes(*body),
-            ];
-            let definition = vm.invoke_host_original_object_vector(&proc_head, &words);
-            assert_eq!(
-                definition.code,
-                tcl_runtime_api::Code::Ok,
-                "{engine}/{case}: {definition:?}"
-            );
-            drop(definition);
-            let head = Value::new_native_string_bytes(b"p".as_slice());
-            let arguments = [
-                Value::new_native_string_bytes(b"D E".as_slice()),
-                Value::new_native_string_bytes(b"C".as_slice()),
-            ];
-            let result = vm.invoke_host_original_object_vector(&head, &arguments);
-            let expected = expansion_result(engine, case);
-            assert_eq!(
-                result.code.as_int().to_string(),
-                expected[2],
-                "{engine}/{case}: {result:?}"
-            );
-            let snapshot = result.result.native_object_snapshot();
-            assert_eq!(
-                format!(
-                    "{}\t{}\t{}",
-                    expansion_cache_name(&snapshot.cache),
-                    usize::from(snapshot.resident.is_some()),
-                    result.result.native_object_reference_count()
-                ),
-                expected[3..6].join("\t"),
-                "{engine}/{case} original result header"
-            );
-            assert_eq!(
-                hex(&vm.native_concat_string_bytes(&result.result).unwrap()),
-                expected[6],
-                "{engine}/{case} original result"
-            );
         }
     }
 }

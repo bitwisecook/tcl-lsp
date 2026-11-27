@@ -32,8 +32,6 @@ use crate::value::Value;
 #[cfg(test)]
 mod literal_script_tests;
 mod native_jim;
-#[cfg(test)]
-mod native_jim_inventory_tests;
 mod native_oo;
 
 pub(crate) fn register(vm: &mut Vm) {
@@ -813,142 +811,8 @@ mod tests {
     use crate::Code;
     use tcl_dialect::TclVersion;
 
-    #[test]
-    fn original_info_complete_keeps_string_worker_and_document_source_configuration_separate() {
-        // naming.source.original-configured-script-completeness
-        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
-        // Six original String observation fields under actual fixture ingress;
-        // no native header encoding or entered-source equivalence is inferred.
-        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
-            let mut vm =
-                crate::native_fixture::core(crate::environment::profile_for_dialect(engine));
-            let jim = engine == "jim";
-            let modern = matches!(engine, "tcl9.0" | "tcl9.1");
-            for (source, expected) in [
-                ("set x ${a{}", !modern),
-                ("set x {*}{", engine == "tcl8.4"),
-                ("set x \\", !jim),
-                ("set x \\\n", jim),
-                ("set x \"a\"b {", !jim),
-                ("# c\\\r\n", true),
-            ] {
-                let original = Value::string(source);
-                let completion = vm
-                    .try_invoke_command("info", &[Value::string("complete"), original])
-                    .unwrap();
-                assert_eq!(
-                    completion.code,
-                    Code::Ok,
-                    "{engine}/{source:?}: {completion:?}"
-                );
-                assert_eq!(
-                    vm.native_name_operand_bytes(&completion.result)
-                        .unwrap()
-                        .as_ref(),
-                    if expected { b"1" } else { b"0" },
-                    "{engine}/{source:?}"
-                );
-            }
-        }
-        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.0"));
-        vm.set_dialect_profile(crate::environment::profile_for_dialect("tcl8.4"));
-        assert_eq!(vm.source_is_complete("set x ${a{}"), Ok(true));
-        let completion = vm
-            .try_invoke_command(
-                "info",
-                &[Value::string("complete"), Value::string("set x ${a{}")],
-            )
-            .unwrap();
-        assert_eq!(completion.code, Code::Ok);
-        assert_eq!(
-            vm.native_name_operand_bytes(&completion.result)
-                .unwrap()
-                .as_ref(),
-            b"0"
-        );
-        assert_eq!(vm.source_is_complete("# c\\\r\n"), Ok(false));
-    }
-
     fn info(vm: &mut Vm, subcommand: &str) -> Completion<Value> {
         cmd_info(vm, &[Value::string(subcommand)])
-    }
-
-    #[test]
-    fn original_info_functions_follow_selected_native_script_and_helpers() {
-        // Native controls: naming.info.functions-native-script
-        // docs/design/analysis/name-resolution-proofs/info-functions-native-script.md
-        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let profile = crate::environment::profile_for_dialect(engine);
-            let mut vm = crate::native_fixture::core(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
-            let completion = vm
-                .eval_source("info functions sin")
-                .unwrap_or_else(|error| panic!("{engine}/info functions sin: {error:?}"));
-            assert_eq!(completion.code, Code::Ok, "{engine}: {completion:?}");
-            assert_eq!(
-                vm.native_name_operand_bytes(&completion.result)
-                    .unwrap()
-                    .as_ref(),
-                b"sin",
-                "{engine}"
-            );
-            let completion = vm.eval_source("namespace eval ::InfoScope085 {namespace eval tcl::mathfunc {proc local085 {} {return LOCAL}}; info functions local085}").unwrap();
-            assert_eq!(completion.code, Code::Ok, "{engine}: {completion:?}");
-            let expected: &[u8] = if engine == "tcl8.4" { b"" } else { b"local085" };
-            assert_eq!(
-                vm.native_name_operand_bytes(&completion.result)
-                    .unwrap()
-                    .as_ref(),
-                expected,
-                "{engine}"
-            );
-            if engine != "tcl8.4" {
-                let completion = vm.eval_source("rename ::apply ::SavedInfoApply085; proc ::apply args {error APPLY_HELPER085}; info functions sin").unwrap();
-                assert_eq!(completion.code, Code::Error, "{engine}: {completion:?}");
-                assert_eq!(
-                    vm.native_name_operand_bytes(&completion.result)
-                        .unwrap()
-                        .as_ref(),
-                    b"APPLY_HELPER085",
-                    "{engine}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn original_info_loaded_uses_counted_interpreter_path_elements() {
-        // Native controls: naming.info.loaded-original-interpreter-path
-        // docs/design/analysis/name-resolution-proofs/info-loaded-original-interpreter-path.md
-        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let profile = crate::environment::profile_for_dialect(engine);
-            let mut vm = crate::native_fixture::core(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
-            for source in [
-                "info loaded {}",
-                "interp create InfoParent085; interp eval InfoParent085 {interp create InfoChild085}; info loaded {InfoParent085 InfoChild085}",
-                "set child [binary format H* 496e666f5a65726f30383500ff]; interp create $child; info loaded $child",
-            ] {
-                let completion = vm.eval_source(source).unwrap();
-                assert_eq!(completion.code, Code::Ok, "{engine}: {completion:?}");
-                assert_eq!(
-                    completion.result.resident_string_bytes().unwrap().as_ref(),
-                    b"",
-                    "{engine}"
-                );
-            }
-            let completion = vm.eval_source("info loaded MissingInfo085").unwrap();
-            assert_eq!(completion.code, Code::Error, "{engine}: {completion:?}");
-            assert_eq!(
-                completion.result.resident_string_bytes().unwrap().as_ref(),
-                b"could not find interpreter \"MissingInfo085\"",
-                "{engine}"
-            );
-        }
     }
 
     #[test]

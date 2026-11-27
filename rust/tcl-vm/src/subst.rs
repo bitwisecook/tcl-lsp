@@ -950,18 +950,9 @@ mod tests {
         Ok(completion.result.string_bytes().to_vec())
     }
 
-    /// Actual `subst` dispatch with only backslash substitution enabled.
-    fn subst_backslashes(template: &str) -> String {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
-        String::from_utf8(dispatch_subst(&mut vm, template, true, false, false).expect("subst"))
-            .expect("Unicode fixture")
-    }
-
     #[test]
     fn jim_subst_scanners_preserve_raw_results_and_expression_ingress() {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
+        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("jim"));
         vm.set_var("raw", Value::from_string_bytes([0xff, 0].as_slice()))
             .expect("raw variable");
         let template = "pre$(1+2)$raw\\xff";
@@ -980,27 +971,6 @@ mod tests {
             b"$(1+2)"
         );
         assert!(dispatch_subst(&mut vm, "$(k)", true, true, true).is_err());
-    }
-
-    #[test]
-    fn subst_hex_escape_consumes_exactly_two_digits() {
-        // Tcl 9 caps `\x` at two hex digits (`TclParseBackslash`): `\x41BC`
-        // is `A` + literal `BC`, never a wider code point or the 8.x
-        // last-two-digits reading.
-        assert_eq!(subst_backslashes(r"\x41BC"), "ABC");
-        assert_eq!(subst_backslashes(r"\x4142"), "A42");
-    }
-
-    #[test]
-    fn subst_backslash_continuation_accepts_only_raw_lf() {
-        // TclParseBackslash recognises raw LF. A channel may translate CRLF
-        // before this parser seam, but raw CR and CRLF remain data.
-        assert_eq!(subst_backslashes("a\\\n   b"), "a b");
-        assert_eq!(subst_backslashes("a\\\r\n\t b"), "a\r\n\t b");
-        assert_eq!(subst_backslashes("a\\\rb"), "a\rb");
-        // FP guard: `\\` is an escaped backslash, so the newline after it is
-        // real content, not a continuation.
-        assert_eq!(subst_backslashes("x\\\\\r\ny"), "x\\\r\ny");
     }
 
     #[test]

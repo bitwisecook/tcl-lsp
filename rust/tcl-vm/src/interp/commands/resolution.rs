@@ -22,8 +22,6 @@ use super::super::{CommandSlot, InterpState, NamespacePath, RetainedNamespace, V
 use super::{CommandSidecarKey, NativeCommandLookupUnavailable};
 use crate::command::Command;
 use tcl_core_types::NameBytes;
-#[cfg(all(test, debug_assertions))]
-use tcl_core_types::VarId;
 use tcl_runtime_api::guard::GuardDomain;
 use tcl_runtime_api::{NsId, ROOT_NS};
 
@@ -280,12 +278,6 @@ impl InterpState {
         self.compilation_epochs
             .cmd_epoch
             .set(self.compilation_epochs.cmd_epoch.get().saturating_add(1));
-    }
-
-    /// Inspect actual variable operation ownership without issuing a storage role.
-    #[cfg(all(test, debug_assertions))]
-    pub(crate) fn has_variable_operation_refs_for_test(&self, id: VarId) -> bool {
-        self.var_arena.has_operation_refs(id)
     }
 
     /// Invalidate the guard domains that depend on the command lookup

@@ -3769,7 +3769,7 @@ badindex:
 ## Consumer bindings
 
 - [rust/tcl-cmd-core/src/lsort.rs](../../../../rust/tcl-cmd-core/src/lsort.rs), `GroupingFailure`: Typed group size and leading-coordinate diagnostics at the actual branch; no message reparsing.
-- [rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs](../../../../rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs), `original_cli_group_fields_match_native656_source_capture` (linked): Exact66 fixed capture-prefix script/code/result/errorCode/errorInfo/presence/count fields match actual CLI656 streams. argv is separately initialised; native startup/private getters, print helper and callback/libc chronology are excluded.
+- [rust/tcl-vm-it/tests/it_5/cmd_list/native_original_group_command_controls.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_list/native_original_group_command_controls.rs), `original_cli_group_fields_match_native656_source_capture` (linked): Exact66 fixed capture-prefix script/code/result/errorCode/errorInfo/presence/count fields match actual CLI656 streams. argv is separately initialised; native startup/private getters, print helper and callback/libc chronology are excluded.
 - [runtime/rust/src/cmd_list/native_original_group_command_controls.rs](../../../../runtime/rust/src/cmd_list/native_original_group_command_controls.rs), `original_cli_group_fields_match_native656_source_capture` (linked): Exact66 fixed capture-prefix script/code/result/errorCode/errorInfo/presence/count fields match actual CLI656 streams. argv is separately initialised; native startup/private getters, print helper and callback/libc chronology are excluded.
 
 ## Evidence

@@ -1391,5 +1391,3 @@ fn cmd_throw(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 #[cfg(test)]
 mod jim_capture_prefix_tests;
-#[cfg(test)]
-mod jim_reached_message_tests;

@@ -273,41 +273,6 @@ fn original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_an
     }
 }
 
-include!(
-    "../../../../runtime/rust/tests/data/native_original_list_group_cli656/software_controls.rs"
-);
-#[test]
-fn original_cli_group_fields_match_native656_source_capture() {
-    // naming.list.original-cli-group-boundary-results
-    // docs/design/analysis/name-resolution-proofs/list-original-cli-group-boundary-results.md
-    // Same fixed Tcl capture prefix with separately initialised argv; compare
-    // exact script/code/result/errorCode/errorInfo/presence and callback count.
-    // Native process startup and private getter/header chronology are excluded.
-    // Jim651 case12 is a different input and remains unavailable.
-    let probe = include_str!(
-        "../../../../runtime/rust/tests/data/native_original_list_group_cli656/probe.tcl"
-    );
-    let capture = probe.split("puts \"case\\t").next().unwrap();
-    assert_eq!(CLI_ROWS.len(), 66);
-    for row in CLI_ROWS {
-        let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect(
-            row.dialect,
-        ));
-        let startup = format!("set argv {{{}}}", row.case);
-        assert_eq!(vm.eval_source(&startup).unwrap().code, Code::Ok);
-        let label = format!("{}:{}:{}", row.dialect, row.case, row.stream_sha256);
-        assert_eq!(vm.eval_source(capture).unwrap().code, Code::Ok, "{label}");
-        for (name, expected) in CLI_VARIABLES.into_iter().zip(row.fields) {
-            let original = vm.get_var(name).unwrap();
-            assert_eq!(
-                vm.index_operand_bytes(&original).unwrap().as_ref(),
-                unhex(expected),
-                "{label}:{name}"
-            );
-        }
-    }
-}
-
 #[test]
 fn original_guest_compare_failure_preserves_result_and_native651_context() {
     // naming.list.original-grouped-stride-and-command-result-getters
