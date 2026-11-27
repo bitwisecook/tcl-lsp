@@ -100,6 +100,7 @@ impl VerbatimIndex {
 
     /// Take the verbatim body for a `word NAME …` invocation captured at
     /// `line`, when the file has exactly that statement there.
+    #[cfg(feature = "programmed-packs")]
     pub(super) fn take(
         &mut self,
         word: &'static str,

@@ -5140,6 +5140,7 @@ dependencies = [
  "tcl-registry",
  "tcl-runtime-api",
  "tcl-spec-hooks",
+ "tcl-spectcl",
  "tcl-syntax",
  "tcl-test-support",
  "tcl-userdirs",

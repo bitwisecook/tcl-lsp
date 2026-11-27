@@ -151,6 +151,44 @@ workspace packages in `cargo tree -e normal,build,dev`.
 | 271 | `tcl-lsp-db` | `src/display_queries.rs` | 1 crate, 8.2 s | 1 crate, 6.6 s | |
 | 272 | `tcl-vm` | `rust/tcl-compiler/src/analyser/diagnostics/widget_command.rs` (a crate above the edges) | 3 crates (`tcl-compiler`, `tcl-codegen`, `tcl-vm`: lib test harness, 15 test binaries), 21.9 s | not yet: both dev-dependencies stay until the 575 remaining `src` tests are rewritten | 19 → 17 (design) |
 
+### Item 318a (`tcl-spectcl`'s hook runner behind a feature): before → after
+
+`tcl-spectcl`'s dependency on `tcl-spec-hooks` is optional, behind the
+non-default `programmed-packs` feature. The server, the CLI (with
+`tcl-cli-support`), MCP, Spec Studio, `xtask`, `tcl-compiler-it` and
+`tcl-lsp-db-it` enable it, and so does `tcl-spectcl`'s own test build,
+through a dev-dependency on itself. Without the feature, the static reader
+loads every shipped pack. A pack that needs the interpreter fails its load
+with a notice naming the feature, and hook bodies get no slot, so they abstain
+as dormant ones do. Measured 27 November 2026 in place, on the main checkout
+with the agent build environment. Cones are the packages in `cargo tree -e
+normal` (deduplicated), all packages / workspace packages:
+
+| Crate | Before | After | Leaves the cone |
+|---|---|---|---|
+| `tcl-spectcl` | 141 / 28 | 133 / 21 | `tcl-spec-hooks`, `tcl-engine-tclvm`, `tcl-engine-api`, `tcl-vm`, `tcl-codegen`, `tcl-host-native`, `tcl-host-c-abi` |
+| `tcl-explorer` | 142 / 29 | 135 / 23 | the same, except `tcl-codegen`, which it names itself |
+| `tcl-explorer-wasm` (own lockfile) | 149 / 30 | 142 / 24 | as `tcl-explorer` |
+| server, CLI, MCP, Spec Studio, `xtask` and their WASM hosts | | unchanged | none (they enable the feature) |
+
+`cargo tree -p tcl-spectcl -e normal` lists no `tcl-spec-hooks`, and
+`cargo tree -e normal -i tcl-vm` prints nothing for `tcl-spectcl`,
+`tcl-explorer`, `tcl-compiler`, `tcl-lsp-core`, `tcl-lsp-db` or `tcl-registry`.
+
+`cargo test -p tcl-explorer --no-run` after appending one line to
+`rust/tcl-engine-tclvm/src/lib.rs`, warm target:
+
+- before: 4 crates (`tcl-engine-tclvm`, `tcl-spec-hooks`, `tcl-spectcl`,
+  `tcl-explorer`), 22.0 s. An edit to `tcl-vm` (another agent's, between two
+  runs) rebuilt 5 crates in 15.7 s.
+- after: 0 crates, 0.2 s.
+
+Variants: features are per build, so a target that builds the explorer's
+tests (feature off) and an entry point (feature on) compiles `tcl-spectcl`
+and `tcl-explorer` twice. That is the one-variant goal of 296 and D-I, which
+the feature approach does not meet: the variant leaves with the rest of item
+318, when the hook runner becomes a dependency that entry crates link.
+
 ### Build levers (items 296–300 and 260): before → after
 
 Measured 26 November 2026 in place on the main checkout (warm target, 11 GB

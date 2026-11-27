@@ -40,7 +40,7 @@ tcl-syntax = { path = "../tcl-syntax" }
 tcl-registry = { path = "../tcl-registry" }
 # SpecTcl runtime spec packs: discovery, load, and workspace-scope insertion
 # into the per-profile cached registry (docs/design/registry/spec-packs.md).
-tcl-spectcl = { path = "../tcl-spectcl" }
+tcl-spectcl = { path = "../tcl-spectcl", features = ["programmed-packs"] }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-bigip = { path = "../tcl-bigip" }
 # Without `probes`: those builtins pull a socket and TLS stack the server has

@@ -139,7 +139,14 @@ fn install_into(
     context: &tcl_registry::model::ResolvedContext,
 ) {
     let plan = hooks::plan_for(packs);
-    install_into_with_plan(registry, packs, context, &plan, None);
+    install_into_with_plan(
+        registry,
+        packs,
+        context,
+        &plan,
+        #[cfg(feature = "programmed-packs")]
+        None,
+    );
 }
 
 fn install_into_with_plan(
@@ -147,7 +154,7 @@ fn install_into_with_plan(
     packs: &PackSet,
     context: &tcl_registry::model::ResolvedContext,
     plan: &hooks::HookPlan,
-    mut installed_rows: Option<&mut Vec<InstalledHookOrigin>>,
+    #[cfg(feature = "programmed-packs")] mut installed_rows: Option<&mut Vec<InstalledHookOrigin>>,
 ) {
     for pack in &packs.packs {
         // Ambient-package declarations go in unfiltered: they are a claim
@@ -201,6 +208,7 @@ fn install_into_with_plan(
                 // these facts, and a VM admits the site only while it holds
                 // the same ones (`PackSet::fact_stamps`).
                 let origin = pack_origin(pack, command);
+                #[cfg(feature = "programmed-packs")]
                 if let Some(rows) = installed_rows.as_mut() {
                     rows.push(InstalledHookOrigin {
                         original: command.spec,
@@ -224,6 +232,7 @@ fn install_into_with_plan(
 
 /// Registry and source allocations produced together by the actual installer.
 /// This retains provenance only; it grants no Native execution permission.
+#[cfg(feature = "programmed-packs")]
 pub(crate) struct OwnedHookRegistry {
     registry: Arc<CommandRegistry>,
     plan: Arc<hooks::HookPlan>,
@@ -231,6 +240,7 @@ pub(crate) struct OwnedHookRegistry {
     installed: Vec<InstalledHookOrigin>,
 }
 
+#[cfg(feature = "programmed-packs")]
 struct InstalledHookOrigin {
     original: &'static CommandSpec,
     installed: &'static CommandSpec,
@@ -240,6 +250,7 @@ struct InstalledHookOrigin {
     origin: PackOrigin,
 }
 
+#[cfg(feature = "programmed-packs")]
 impl OwnedHookRegistry {
     pub(crate) fn registry(&self) -> &Arc<CommandRegistry> {
         &self.registry
@@ -284,6 +295,7 @@ impl OwnedHookRegistry {
 
 /// Build a private reader and capture the exact allocations the installer
 /// publishes. The shared overlay cache cannot substitute a same-content load.
+#[cfg(feature = "programmed-packs")]
 pub(crate) fn owned_hook_registry(
     profile: &'static DialectProfile,
     packs: &PackSet,
@@ -313,14 +325,17 @@ pub(crate) fn owned_hook_registry(
 /// plus a copied subcommand slice only where shipped compilers are
 /// re-attached; the store itself is `Arc`-owned and freed. The cap bounds
 /// the leak at 64 × 1824 bytes ≈ 114 KiB per installed pack command.
+#[cfg(feature = "programmed-packs")]
 const MAX_OWNED_HOOK_REGISTRIES: usize = 64;
 
 /// Private stores by profile and pack key, built at most once each.
+#[cfg(feature = "programmed-packs")]
 pub(crate) struct OwnedHookRegistryMemo {
     entries: std::sync::Mutex<Vec<(&'static str, u64, Arc<OwnedHookRegistry>)>>,
     cap: usize,
 }
 
+#[cfg(feature = "programmed-packs")]
 impl OwnedHookRegistryMemo {
     pub(crate) const fn new(cap: usize) -> Self {
         Self {
@@ -355,10 +370,12 @@ impl OwnedHookRegistryMemo {
     }
 }
 
+#[cfg(feature = "programmed-packs")]
 static OWNED_HOOK_REGISTRIES: OwnedHookRegistryMemo =
     OwnedHookRegistryMemo::new(MAX_OWNED_HOOK_REGISTRIES);
 
 /// The process's bounded private store for `packs` under `profile`.
+#[cfg(feature = "programmed-packs")]
 pub(crate) fn bounded_owned_hook_registry(
     profile: &'static DialectProfile,
     packs: &PackSet,

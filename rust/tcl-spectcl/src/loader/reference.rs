@@ -456,5 +456,26 @@ mod tests {
             super::super::SANDBOX_COMMANDS,
             tcl_spec_hooks::SANDBOX_COMMANDS
         );
+        assert_eq!(
+            super::super::PACK_EVAL_EXTRA_COMMANDS,
+            tcl_spec_hooks::pack_eval::PACK_EVAL_EXTRA_COMMANDS
+        );
+    }
+
+    /// The static reader and the interpreter's unknown handler deny the same
+    /// words, by their written spelling, and nothing a pack program is given.
+    #[test]
+    fn denials_name_their_axis_by_written_spelling() {
+        use super::super::{PACK_EVAL_EXTRA_COMMANDS, denied_axis};
+        assert_eq!(denied_axis(":clock"), None);
+        assert_eq!(denied_axis("::::clock"), Some("clock/time"));
+        assert_eq!(denied_axis("other::clock"), None);
+        assert_eq!(denied_axis("::tcl::mathfunc::rand"), Some("randomness"));
+        for denied in [
+            "open", "exec", "source", "socket", "after", "interp", "info",
+        ] {
+            assert!(!PACK_EVAL_EXTRA_COMMANDS.contains(&denied));
+            assert!(denied_axis(denied).is_some(), "{denied} must name an axis");
+        }
     }
 }

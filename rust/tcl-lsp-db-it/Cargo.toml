@@ -35,7 +35,7 @@ tcl-lsp-db = { path = "../tcl-lsp-db" }
 # publishes their hook plans as the server does; it sits beside
 # `tcl-lsp-db`, so these tests live here rather than in `tcl-lsp-db`, where
 # every SpecTcl or VM edit would rebuild them.
-tcl-spectcl = { path = "../tcl-spectcl" }
+tcl-spectcl = { path = "../tcl-spectcl", features = ["programmed-packs"] }
 # A real VM hands the function-lattice test its native compilation entry.
 tcl-vm = { path = "../tcl-vm" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }

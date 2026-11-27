@@ -29,6 +29,10 @@
 //! list operations) works between them and a pack can template its
 //! registrations.
 //!
+//! The interpreter is linked with the `programmed-packs` feature. Without it
+//! only the static fast path below runs, and a pack it cannot capture fails
+//! its load with a [`LoadError::EvaluationFailed`] naming the feature.
+//!
 //! ## Capture, then replay through the vocabulary's own readers
 //!
 //! The host commands do **not** interpret their arguments. Each invocation
@@ -51,7 +55,7 @@
 //! ## The contracts this module enforces
 //!
 //! - **Determinism** (§1.2): the sandbox whitelist plus
-//!   [`pack_eval::denied_axis`] — an evaluated pack cannot reach a clock,
+//!   [`denied_axis`](super::denied_axis) — an evaluated pack cannot reach a clock,
 //!   file, socket, process, environment variable, or the event loop, and a
 //!   dispatch that tries fails the load with a notice naming the axis.
 //!   Budgets bound steps, wall clock, and value size; a blown budget fails
@@ -88,6 +92,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+#[cfg(feature = "programmed-packs")]
 use tcl_spec_hooks::pack_eval::{self, PackEvalConfig, PackEvalCtx, PackEvalFailure, WordHandler};
 
 use super::{LoadError, Notice, Pack, Stmt, VocabularyClass, Word, empty_pack};
@@ -99,8 +104,10 @@ mod replay;
 mod static_drive;
 mod verbatim;
 
+use capture_handlers::capture_stmt;
+#[cfg(feature = "programmed-packs")]
 use capture_handlers::{
-    available_handler, block_handler, capture_stmt, command_handler, include_handler, row_handler,
+    available_handler, block_handler, command_handler, include_handler, row_handler,
     speclib_handler, subcommand_handler, unknown_handler,
 };
 pub use replay::provenance_violation;
@@ -142,6 +149,7 @@ pub struct EvalOptions {
     /// that reports nothing, is trusted.
     pub trust: WorkspaceTrust,
     /// The budgets evaluation runs under.
+    #[cfg(feature = "programmed-packs")]
     pub config: PackEvalConfig,
     /// Whether the static fast path may short-circuit the interpreter for a
     /// body whose statements are all static vocabulary (see [`run_body`]).
@@ -165,6 +173,7 @@ impl Default for EvalOptions {
         Self {
             tier: Tier::Bundled,
             trust: WorkspaceTrust::Trusted,
+            #[cfg(feature = "programmed-packs")]
             config: PackEvalConfig::default(),
             static_fast_path: true,
             commands: true,
@@ -224,6 +233,7 @@ pub fn evaluate_pack(source: &str) -> Pack {
 ///
 /// `speclib`, `command`, `subcommand`, and `available?` are not here — each
 /// has its own handler with body evaluation or an answer.
+#[cfg(feature = "programmed-packs")]
 const ROW_WORDS: &[&str] = &[
     // pack scope
     "values",
@@ -381,6 +391,17 @@ const ROW_WORDS: &[&str] = &[
     "sub_subcommand",
 ];
 
+/// The interpreter's place in a [`Drive`] when none is linked: never built.
+#[cfg(not(feature = "programmed-packs"))]
+struct PackEvalCtx<'a>(std::convert::Infallible, std::marker::PhantomData<&'a ()>);
+
+#[cfg(not(feature = "programmed-packs"))]
+impl PackEvalCtx<'_> {
+    fn eval_body(&mut self, _body: &str) -> Result<(), String> {
+        match self.0 {}
+    }
+}
+
 /// How the current body is being driven: the interpreter when there is one,
 /// and whether the capture layer may shortcut past it.
 ///
@@ -415,6 +436,7 @@ impl<'b> Drive<'_, 'b> {
 /// than assumed: a load that asked for no fast path must not get one back
 /// for its nested bodies, which is exactly what the gate in
 /// `tests/eval_loader.rs` relies on to compare the two routes.
+#[cfg(feature = "programmed-packs")]
 fn interpreted<'a, 'b>(ctx: &'a mut PackEvalCtx<'b>, fast_path: bool) -> Drive<'a, 'b> {
     Drive {
         ctx: Some(ctx),
@@ -614,6 +636,7 @@ struct State {
     /// The first sandbox denial the evaluation raised. A denial is a hard
     /// determinism error even when the pack catches it, so the failure is
     /// classified from this record, never from the guest error text.
+    #[cfg(feature = "programmed-packs")]
     determinism_denial: Option<String>,
     /// The absolute base line of each unit being evaluated, innermost
     /// last; a captured statement's absolute line is `base + relative - 1`.
@@ -652,6 +675,7 @@ struct State {
 }
 
 impl State {
+    #[cfg(feature = "programmed-packs")]
     fn absolute_line(&self, relative: u32) -> u32 {
         self.base_lines
             .last()
@@ -721,6 +745,7 @@ impl State {
 /// The evaluated registration vocabulary's exact `NAME ?-override? BODY`
 /// layout. These are already evaluated Unicode values, not original words or
 /// a reusable source recipe. Unknown layouts cannot donate body geometry.
+#[cfg(feature = "programmed-packs")]
 struct EvaluatedCommandBody<'a> {
     text: &'a str,
     overrides: bool,
@@ -778,9 +803,19 @@ pub fn evaluate_pack_in(
         && let Some(state) = drive_file_statically(source, include.clone(), options.commands)
     {
         let hash = pack_content_hash(root, &state.included);
-        return with_content_hash(replay(state, options), hash);
+        return with_content_hash(replay(state, *options), hash);
     }
+    interpret(source, root, *options, include)
+}
 
+/// A pack the static reader could not capture, run in the VM.
+#[cfg(feature = "programmed-packs")]
+fn interpret(
+    source: &str,
+    root: u64,
+    options: EvalOptions,
+    include: Option<Rc<super::IncludeContext>>,
+) -> Pack {
     let state = new_state(source, include, options.commands);
     let mut vocabulary: Vec<(&str, WordHandler)> = Vec::with_capacity(ROW_WORDS.len() + 5);
     for &word in ROW_WORDS {
@@ -811,6 +846,32 @@ pub fn evaluate_pack_in(
         }
         Err(failure) => failed_pack(&state, &failure),
     }
+}
+
+/// Without the VM, a pack the static reader could not capture fails its load.
+#[cfg(not(feature = "programmed-packs"))]
+fn interpret(
+    _source: &str,
+    _root: u64,
+    _options: EvalOptions,
+    _include: Option<Rc<super::IncludeContext>>,
+) -> Pack {
+    let error = LoadError::EvaluationFailed(
+        "the pack is a Tcl program and this build links no interpreter to run it \
+         (`tcl-spectcl`'s `programmed-packs` feature)"
+            .to_owned(),
+    );
+    let mut pack = empty_pack();
+    pack.notices.push(Notice {
+        subject: None,
+        newer_vocabulary: None,
+        context: "pack".to_owned(),
+        line: 1,
+        class: VocabularyClass::Semantic,
+        message: format!("{error}; nothing from this pack is loaded"),
+    });
+    pack.load_error = Some(error);
+    pack
 }
 
 /// xxh3 of a pack source's bytes — the one hashing rule the snapshot key,
@@ -887,6 +948,7 @@ fn new_state(
 
 /// A pack whose evaluation broke: transactional discard, one explaining
 /// notice, and the reason as a typed [`LoadError`].
+#[cfg(feature = "programmed-packs")]
 fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
     let mut pack = empty_pack();
     if let Some(speclib) = &state.speclib {

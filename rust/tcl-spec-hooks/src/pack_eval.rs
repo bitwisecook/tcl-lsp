@@ -62,8 +62,8 @@ use crate::sandbox::SANDBOX_COMMANDS;
 /// absent, exactly as for hook bodies: anything that reads a clock, a file, a
 /// socket, the environment, or the event loop — and additionally `info`,
 /// `uplevel`, `upvar`, `trace`, `rename`, `subst`, and `interp`, which stay
-/// denied so a pack cannot observe or rewrite the host's world
-/// ([`denied_axis`] names each one's axis).
+/// denied so a pack cannot observe or rewrite the host's world (the loader's
+/// unknown handler names each one's axis).
 pub const PACK_EVAL_EXTRA_COMMANDS: &[&str] = &[
     "proc",
     "apply",
@@ -90,74 +90,6 @@ pub const PACK_EVAL_EXTRA_COMMANDS: &[&str] = &[
     "const",
     "fpclassify",
 ];
-
-/// Commands the pack sandbox deliberately denies, each with the determinism
-/// axis its absence protects. An unresolved dispatch of one of these is a
-/// **sandbox denial** — a hard, transactional load failure — where an
-/// unresolved word outside this table is unknown *vocabulary* and follows the
-/// loader's §6.1 classification instead.
-const DENIED_COMMANDS: &[(&str, &str)] = &[
-    ("clock", "clock/time"),
-    ("time", "clock/time"),
-    ("after", "event loop"),
-    ("update", "event loop"),
-    ("vwait", "event loop"),
-    ("open", "file/channel access"),
-    ("close", "file/channel access"),
-    ("read", "file/channel access"),
-    ("gets", "file/channel access"),
-    ("puts", "file/channel access"),
-    ("seek", "file/channel access"),
-    ("tell", "file/channel access"),
-    ("eof", "file/channel access"),
-    ("flush", "file/channel access"),
-    ("fblocked", "file/channel access"),
-    ("fconfigure", "file/channel access"),
-    ("file", "file/channel access"),
-    ("glob", "file/channel access"),
-    ("cd", "file/channel access"),
-    ("pwd", "file/channel access"),
-    ("source", "file/channel access"),
-    ("socket", "network"),
-    ("exec", "process execution"),
-    ("exit", "process control"),
-    ("package", "package loading"),
-    ("auto_load", "package loading"),
-    ("auto_import", "package loading"),
-    ("encoding", "host environment"),
-    ("interp", "interpreter escape"),
-    ("info", "host introspection"),
-    ("uplevel", "sandbox containment"),
-    ("upvar", "sandbox containment"),
-    ("trace", "sandbox containment"),
-    ("rename", "sandbox containment"),
-    ("subst", "sandbox containment"),
-    ("tailcall", "sandbox containment"),
-    ("coroutine", "sandbox containment"),
-    ("yield", "sandbox containment"),
-    ("yieldto", "sandbox containment"),
-    // Swept from the sandbox, so `expr {rand()}` reaches `unknown` under its
-    // math-function command name, as a missing function does in C Tcl.
-    ("tcl::mathfunc::rand", "randomness"),
-    ("tcl::mathfunc::srand", "randomness"),
-];
-
-/// The determinism axis `name` is denied on, when it is a denied command
-/// rather than unknown vocabulary.
-#[must_use]
-pub fn denied_axis(name: &str) -> Option<&'static str> {
-    // This classifier accepts written vocabulary spelling. Actual unknown
-    // dispatch attempts command lookup before it reaches this classifier.
-    let written = tcl_syntax::naming::canonical_written_command(name);
-    let name = tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written);
-    if name.starts_with("thread::") || name.starts_with("tpool::") || name.starts_with("tsv::") {
-        return Some("threading");
-    }
-    DENIED_COMMANDS
-        .iter()
-        .find(|(denied, _)| *denied == name)
-        .map(|(_, axis)| *axis)
-}
 
 /// The wall-clock half of the default pack-evaluation budget — and `None`
 /// wherever there is no host clock a snapshot may depend on.
@@ -335,7 +267,7 @@ pub type WordHandler =
 
 /// The handler for a command name nothing resolves: the attempted name plus
 /// its arguments. This is where the loader applies §6.1 vocabulary
-/// classification and where [`denied_axis`] denials become hard errors.
+/// classification and turns a sandbox denial into a hard error.
 pub type UnknownHandler =
     Rc<dyn Fn(&mut PackEvalCtx<'_>, &str, &[String]) -> Result<Option<String>, String>>;
 
@@ -520,7 +452,7 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 mod tests {
     use super::{
         PACK_EVAL_EXTRA_COMMANDS, PACK_EVAL_WALL_CLOCK, PackEvalConfig, PackEvalFailure,
-        UnknownHandler, WordHandler, denied_axis, run_pack_program,
+        UnknownHandler, WordHandler, run_pack_program,
     };
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -542,8 +474,8 @@ mod tests {
         let unknown: UnknownHandler = {
             let seen = Rc::clone(&seen);
             Rc::new(move |_ctx, name, args| {
-                if let Some(axis) = denied_axis(name) {
-                    return Err(format!("`{name}` denied ({axis})"));
+                if name == "clock" || name.contains("mathfunc::") {
+                    return Err(format!("`{name}` denied"));
                 }
                 let mut row = vec!["?".to_owned(), name.to_owned()];
                 row.extend(args.iter().cloned());
@@ -572,9 +504,6 @@ mod tests {
             *seen.borrow(),
             [vec!["register".to_owned(), "A\0B".to_owned()]]
         );
-        assert_eq!(denied_axis(":clock"), None);
-        assert_eq!(denied_axis("::::clock"), Some("clock/time"));
-        assert_eq!(denied_axis("other::clock"), None);
     }
 
     #[test]
@@ -657,10 +586,10 @@ mod tests {
     /// `rand` is swept from the sandbox, so `rand()` meets `unknown` exactly as
     /// a missing math function does in C Tcl (`tclsh9.0.4`: with
     /// `proc unknown args {return U:$args}`, `expr {foo()}` is
-    /// `U:tcl::mathfunc::foo`). There it is a randomness denial, so the
-    /// random generator is never reached and nothing is registered.
+    /// `U:tcl::mathfunc::foo`). The unknown handler decides, so the random
+    /// generator is never reached and nothing is registered.
     #[test]
-    fn rand_and_srand_are_randomness_denials() {
+    fn rand_and_srand_reach_the_unknown_handler() {
         for call in ["rand()", "srand(1)"] {
             let (seen, vocabulary, unknown) = capture_all();
             let outcome = run_pack_program(
@@ -671,7 +600,7 @@ mod tests {
             );
             assert!(
                 matches!(&outcome, Err(PackEvalFailure::Script(message))
-                    if message.contains("randomness")),
+                    if message.contains("tcl::mathfunc::") && message.contains("rand")),
                 "{call}: {outcome:?}"
             );
             assert!(
@@ -680,7 +609,6 @@ mod tests {
                 seen.borrow()
             );
         }
-        assert_eq!(denied_axis("::tcl::mathfunc::rand"), Some("randomness"));
     }
 
     #[test]
@@ -692,7 +620,6 @@ mod tests {
                 !PACK_EVAL_EXTRA_COMMANDS.contains(&denied),
                 "{denied} must stay denied for pack programs"
             );
-            assert!(denied_axis(denied).is_some(), "{denied} must name an axis");
         }
     }
 }

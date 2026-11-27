@@ -78,10 +78,13 @@ Each feature takes the first of these options that fits:
    capabilities) and possibly `tcl-irules`' request counter. The cost from item
    259's numbers is recorded here.
 
-The hook runner is not a feature either (D-I): after item 318a `tcl-spectcl`
-has no feature that switches it, and the named entry crates link
-`tcl-spec-hooks` as a dependency, so building the explorer and MCP in one
-worktree compiles `tcl-spectcl` once. Each variant this item removes also
+In the end state the hook runner is not a feature either (D-I): the named
+entry crates link `tcl-spec-hooks` as a dependency, so building the explorer
+and MCP in one worktree compiles `tcl-spectcl` once. Item 318a, the step
+before it, does use a feature, `tcl-spectcl`'s `programmed-packs`, so until
+the rest of 318 lands, a target that builds the explorer's tests (feature off)
+and an entry point (feature on) builds `tcl-spectcl` and `tcl-explorer` twice
+([current state](../../work/build-test-cost/current-state.md)). Each variant this item removes also
 removes one incremental directory; incremental stays on (260's decision).
 
 ### Measurement plan

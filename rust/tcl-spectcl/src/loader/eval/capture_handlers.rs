@@ -24,14 +24,18 @@ use super::super::{
 };
 use super::static_drive::run_body;
 use super::{
-    BodyText, Commands, Drive, EvaluatedCommandBody, Node, PackNode, ScopeKind, SpeclibDecl,
-    StagedBlock, StagedCommand, StagedSub, State, VerbatimBody, content_hash, interpreted,
+    BodyText, Drive, Node, PackNode, ScopeKind, SpeclibDecl, StagedBlock, StagedCommand, StagedSub,
+    State, VerbatimBody, content_hash,
 };
+#[cfg(feature = "programmed-packs")]
+use super::{Commands, EvaluatedCommandBody, interpreted};
+#[cfg(feature = "programmed-packs")]
 use crate::export::synth_word;
 use std::cell::RefCell;
 use std::rc::Rc;
+#[cfg(feature = "programmed-packs")]
 use tcl_dialect::model::surfaces_overlap;
-use tcl_spec_hooks::pack_eval;
+#[cfg(feature = "programmed-packs")]
 use tcl_spec_hooks::pack_eval::{PackEvalCtx, UnknownHandler, WordHandler};
 
 /// Whether an argument's text can only have been written as a `{ … }` block
@@ -77,6 +81,7 @@ fn eval_notice(context: &str, line: u32, class: VocabularyClass, message: String
 }
 
 /// The handler for one plain row word.
+#[cfg(feature = "programmed-packs")]
 pub(super) fn row_handler(word: &'static str, state: &Rc<RefCell<State>>) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
@@ -114,6 +119,7 @@ pub(super) fn track_declared_support(state: &mut State, args: &[String], line: u
 /// The `speclib` handler: header capture, extra-block reporting, and body
 /// evaluation. A thin adapter over [`stage_speclib`], which the static
 /// driver reaches with the file's own words instead of evaluated values.
+#[cfg(feature = "programmed-packs")]
 pub(super) fn speclib_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
@@ -216,6 +222,7 @@ pub(super) fn stage_speclib(
     Ok(())
 }
 
+#[cfg(feature = "programmed-packs")]
 impl<'a> EvaluatedCommandBody<'a> {
     pub(super) fn select(arguments: &'a [String]) -> Option<Self> {
         match arguments {
@@ -234,6 +241,7 @@ impl<'a> EvaluatedCommandBody<'a> {
 
 /// The `command` handler: head capture plus body evaluation in a fresh
 /// command scope.
+#[cfg(feature = "programmed-packs")]
 pub(super) fn command_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
@@ -374,6 +382,7 @@ pub(super) fn stage_command(
 /// The `subcommand` handler: valid only directly inside a `command` body,
 /// where its own body evaluates in a subcommand scope; anywhere else it is
 /// a plain row, which replays to the ordinary unknown-property notice.
+#[cfg(feature = "programmed-packs")]
 pub(super) fn subcommand_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
@@ -432,6 +441,7 @@ pub(super) fn stage_subcommand(
 /// body is **evaluated**, in a fresh block scope, exactly as a `command`
 /// body is. Anywhere else it is a plain row, which replays to the ordinary
 /// unknown-property notice.
+#[cfg(feature = "programmed-packs")]
 pub(super) fn block_handler(
     word: &'static str,
     state: &Rc<RefCell<State>>,
@@ -478,6 +488,7 @@ pub(super) fn block_handler(
 /// rejected on this path as well. Failing that the layout decides —
 /// `NAME ?-extend? BODY`, the body always last — never whitespace in the
 /// value, which would lose a one-word body such as `{emit}`.
+#[cfg(feature = "programmed-packs")]
 fn block_head(
     word: &'static str,
     args: &[String],
@@ -551,6 +562,7 @@ pub(super) fn stage_block(
 /// The `include` handler (2.0, Q6): valid only as a literal pack-scope
 /// row; the resolved fragment evaluates in place with provenance
 /// inherited, under the determinism contract's content-hash cycle key.
+#[cfg(feature = "programmed-packs")]
 pub(super) fn include_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
@@ -698,6 +710,7 @@ pub(super) fn stage_include(
 
 /// The `available?` query (E-R1): answers against the union of the pack's
 /// declared support and downgrades the pack's cacheability class.
+#[cfg(feature = "programmed-packs")]
 pub(super) fn available_handler(state: &Rc<RefCell<State>>) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
@@ -736,11 +749,12 @@ pub(super) fn available_handler(state: &Rc<RefCell<State>>) -> WordHandler {
 /// The unresolved-dispatch handler: a sandbox denial is a hard determinism
 /// error; anything else is unknown vocabulary, captured so the replay
 /// classifies it under §6.1.
+#[cfg(feature = "programmed-packs")]
 pub(super) fn unknown_handler(state: &Rc<RefCell<State>>) -> UnknownHandler {
     let state = Rc::clone(state);
     Rc::new(
         move |ctx: &mut PackEvalCtx<'_>, name: &str, args: &[String]| {
-            if let Some(axis) = pack_eval::denied_axis(name) {
+            if let Some(axis) = super::super::denied_axis(name) {
                 return Err(record_denial(
                     &state,
                     format!(
@@ -761,6 +775,7 @@ pub(super) fn unknown_handler(state: &Rc<RefCell<State>>) -> UnknownHandler {
 
 /// Keep the first denial on the evaluation state and return its message as
 /// the Tcl error the pack sees.
+#[cfg(feature = "programmed-packs")]
 fn record_denial(state: &Rc<RefCell<State>>, message: String) -> String {
     state
         .borrow_mut()

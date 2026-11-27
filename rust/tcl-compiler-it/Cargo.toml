@@ -34,7 +34,7 @@ tcl-compiler = { path = "../tcl-compiler", features = ["test-support"] }
 # Seeds Jim's compiled-in core surface (`core_surfaces::ensure`) and loads
 # `.tclspec` packs; it depends on `tcl-compiler`, so these tests live here
 # rather than in `tcl-compiler`, where every edit would rebuild it.
-tcl-spectcl = { path = "../tcl-spectcl" }
+tcl-spectcl = { path = "../tcl-spectcl", features = ["programmed-packs"] }
 # Concrete closed-consumer test ingress.
 tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
 tcl-test-support = { path = "../tcl-test-support" }

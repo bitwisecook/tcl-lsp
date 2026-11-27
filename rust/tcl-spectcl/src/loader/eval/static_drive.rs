@@ -29,7 +29,6 @@ use super::{
 };
 use std::cell::RefCell;
 use std::rc::Rc;
-use tcl_spec_hooks::pack_eval;
 
 /// Run one body: when it is the file's verbatim text and every statement at
 /// this level is static vocabulary, capture the statements directly —
@@ -77,8 +76,8 @@ pub(super) fn run_body(
 /// statement headed by one of these must really evaluate.
 pub(super) fn is_general_tcl(word: &str) -> bool {
     let parts = tcl_syntax::naming::written_command_parts(word.as_bytes());
-    tcl_spec_hooks::SANDBOX_COMMANDS.contains(&word)
-        || pack_eval::PACK_EVAL_EXTRA_COMMANDS.contains(&word)
+    super::super::SANDBOX_COMMANDS.contains(&word)
+        || super::super::PACK_EVAL_EXTRA_COMMANDS.contains(&word)
         || parts.absolute
         || parts.qualifiers.first().is_some_and(|part| *part == b"tcl")
 }
@@ -97,7 +96,7 @@ pub(crate) fn static_stmt(stmt: &Stmt) -> bool {
     if head.is_empty()
         || head == "available?"
         || is_general_tcl(head)
-        || pack_eval::denied_axis(head).is_some()
+        || super::super::denied_axis(head).is_some()
     {
         return false;
     }

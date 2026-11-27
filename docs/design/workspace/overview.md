@@ -19,7 +19,7 @@ worktree a large build today (cargo metadata and `cargo tree`, 26 November
 | Edge | Why it is wrong |
 |---|---|
 | `tcl-spectcl` → `tcl-lsp-core` | a loader above a feature crate (item 288) |
-| `tcl-spectcl` → `tcl-spec-hooks` → `tcl-engine-tclvm` → `tcl-vm`, `tcl-codegen` | the pack loader evaluates packs in the VM, so every crate that takes `tcl-spectcl` links the VM and the code generator |
+| `tcl-spectcl` → `tcl-spec-hooks` → `tcl-engine-tclvm` → `tcl-vm`, `tcl-codegen` | the pack loader evaluates packs in the VM, so every crate that takes `tcl-spectcl` links the VM and the code generator. Since item 318a the edge is optional: the `programmed-packs` feature, enabled by the server, the CLI, MCP, Spec Studio and `xtask` |
 | `tcl-lsp-core` → `tcl-bigip`, `tcl-irules`, `tcl-sslictcl` | domain crates linked into the feature core (289) |
 | `tcl-bigip` → `tcl-irules` → `tcl-compiler` | the BIG-IP config model sits above the whole compiler for five iRules functions |
 | `f5-cli`, `f5-xc`, `tcl-cli-support`, `tcl-spec-studio`, `xtask`, `bigip-query-wasm` → `tcl-lsp-core` | each needs one or two modules of a 132k-line crate |
@@ -456,7 +456,12 @@ builds).
   plan item covers it; items 305–307 (SpecTcl 3, packs as images) may remove
   the need. Recorded here as an open question for the owner. Settled since:
   item 318 and decision D-I make the hook runner a dependency that only
-  named entry crates link, so the loader links no VM.
+  named entry crates link, so the loader links no VM. As built by 318a (27 November
+  2026), the edge sits behind `tcl-spectcl`'s non-default `programmed-packs`
+  feature: without it the loader keeps its static reader, a pack that needs
+  the interpreter fails its load naming the feature, and hook bodies stay
+  dormant. The rest of 318 replaces the feature with D-I's linked
+  dependency.
 
 ## Review fixes (26 November 2026, deep review)
 

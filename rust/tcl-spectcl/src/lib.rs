@@ -43,6 +43,11 @@
 //! it is here, and not in either neighbour, because this is the only crate
 //! that owns both the loader's `HookDecl` and the host's `HookProgram`.
 //!
+//! The host, and with it the VM, is linked only with the `programmed-packs`
+//! feature, which the entry points enable. Without it a pack the static
+//! reader cannot capture fails its load, and [`hooks`] is the trust half
+//! only: every declared body abstains.
+//!
 //! ## Why this is not in `tcl-spec-studio`
 //!
 //! The loader was written in the studio, where the DSL was designed. It lives
@@ -79,6 +84,10 @@ pub mod environment;
 pub mod export;
 mod extension_artefacts;
 pub mod golden;
+#[cfg(feature = "programmed-packs")]
+pub mod hooks;
+#[cfg(not(feature = "programmed-packs"))]
+#[path = "hooks/dormant.rs"]
 pub mod hooks;
 pub mod install;
 pub mod loader;

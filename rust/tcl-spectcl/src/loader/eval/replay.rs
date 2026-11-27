@@ -162,7 +162,7 @@ fn provenance_violation_in(
 
 /// Turn a completed evaluation's staging into a [`Pack`] through the
 /// vocabulary's row readers.
-pub(super) fn replay(state: State, options: &EvalOptions) -> Pack {
+pub(super) fn replay(state: State, options: EvalOptions) -> Pack {
     let mut log = Log {
         context: "pack".to_owned(),
         source: Some(std::sync::Arc::from(state.verbatim.source.as_ref())),

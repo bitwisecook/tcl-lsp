@@ -273,6 +273,104 @@ pub const SANDBOX_COMMANDS: &[&str] = &[
     "lsort", "join", "split", "string", "format", "scan", "regexp", "regsub", "dict", "binary",
 ];
 
+/// The general Tcl the pack-evaluation host gives a pack program beyond
+/// [`SANDBOX_COMMANDS`], recorded here so the static reader knows a statement
+/// it heads must really evaluate, with or without the host linked.
+pub const PACK_EVAL_EXTRA_COMMANDS: &[&str] = &[
+    "proc",
+    "apply",
+    "eval",
+    "namespace",
+    "variable",
+    "global",
+    "concat",
+    "append",
+    "unset",
+    "catch",
+    "error",
+    "throw",
+    "try",
+    "lmap",
+    "linsert",
+    "lrepeat",
+    "lreverse",
+    "lset",
+    "lpop",
+    "ledit",
+    "lseq",
+    "array",
+    "const",
+    "fpclassify",
+];
+
+/// Commands the pack sandbox deliberately denies, each with the determinism
+/// axis its absence protects. An unresolved dispatch of one of these is a
+/// **sandbox denial** — a hard, transactional load failure — where an
+/// unresolved word outside this table is unknown *vocabulary* and follows the
+/// loader's §6.1 classification instead.
+const DENIED_COMMANDS: &[(&str, &str)] = &[
+    ("clock", "clock/time"),
+    ("time", "clock/time"),
+    ("after", "event loop"),
+    ("update", "event loop"),
+    ("vwait", "event loop"),
+    ("open", "file/channel access"),
+    ("close", "file/channel access"),
+    ("read", "file/channel access"),
+    ("gets", "file/channel access"),
+    ("puts", "file/channel access"),
+    ("seek", "file/channel access"),
+    ("tell", "file/channel access"),
+    ("eof", "file/channel access"),
+    ("flush", "file/channel access"),
+    ("fblocked", "file/channel access"),
+    ("fconfigure", "file/channel access"),
+    ("file", "file/channel access"),
+    ("glob", "file/channel access"),
+    ("cd", "file/channel access"),
+    ("pwd", "file/channel access"),
+    ("source", "file/channel access"),
+    ("socket", "network"),
+    ("exec", "process execution"),
+    ("exit", "process control"),
+    ("package", "package loading"),
+    ("auto_load", "package loading"),
+    ("auto_import", "package loading"),
+    ("encoding", "host environment"),
+    ("interp", "interpreter escape"),
+    ("info", "host introspection"),
+    ("uplevel", "sandbox containment"),
+    ("upvar", "sandbox containment"),
+    ("trace", "sandbox containment"),
+    ("rename", "sandbox containment"),
+    ("subst", "sandbox containment"),
+    ("tailcall", "sandbox containment"),
+    ("coroutine", "sandbox containment"),
+    ("yield", "sandbox containment"),
+    ("yieldto", "sandbox containment"),
+    // Swept from the sandbox, so `expr {rand()}` reaches `unknown` under its
+    // math-function command name, as a missing function does in C Tcl.
+    ("tcl::mathfunc::rand", "randomness"),
+    ("tcl::mathfunc::srand", "randomness"),
+];
+
+/// The determinism axis `name` is denied on, when it is a denied command
+/// rather than unknown vocabulary.
+#[must_use]
+pub(crate) fn denied_axis(name: &str) -> Option<&'static str> {
+    // This classifier accepts written vocabulary spelling. Actual unknown
+    // dispatch attempts command lookup before it reaches this classifier.
+    let written = tcl_syntax::naming::canonical_written_command(name);
+    let name = tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written);
+    if name.starts_with("thread::") || name.starts_with("tpool::") || name.starts_with("tsv::") {
+        return Some("threading");
+    }
+    DENIED_COMMANDS
+        .iter()
+        .find(|(denied, _)| *denied == name)
+        .map(|(_, axis)| *axis)
+}
+
 /// Where a hook's behaviour comes from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HookSource {

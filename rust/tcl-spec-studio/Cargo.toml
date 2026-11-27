@@ -30,7 +30,7 @@ authors.workspace = true
 [dependencies]
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }
-tcl-spectcl = { path = "../tcl-spectcl" }
+tcl-spectcl = { path = "../tcl-spectcl", features = ["programmed-packs"] }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-lexer = { path = "../tcl-lexer" }

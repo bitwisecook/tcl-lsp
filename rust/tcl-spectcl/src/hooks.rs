@@ -62,9 +62,12 @@
 //! pack file (`docs/design/compiler/registry-consumer-contracts.md` § *Ruling
 //! — trust gates execution, not authority*).
 
+mod dormant;
 mod owned_application;
 mod owned_evaluator;
 mod service;
+use dormant::bodies;
+pub use dormant::{DormantHook, dormant_hooks, hook_bodies_run};
 pub use owned_application::{
     FoldAuthority, OwnedApplicationExecution, OwnedApplicationReceipt,
     execute_owned_application_source,
@@ -91,21 +94,6 @@ use crate::loader::{HookDecl, HookOwner as DeclOwner, HookSource, PackCommand};
 use crate::pack::PackSet;
 
 // The adapter: HookDecl → HookProgram
-
-/// Every hook **body** `commands` declare, beside the command it hangs off:
-/// what the host would run. A `-native ID` names engine code the pack cannot
-/// supply and a derivation keyword is the loader's own business, so neither
-/// is one. [`programs_of`] and [`dormant_hooks`] both read this, so the hooks
-/// a trusted workspace runs are exactly the ones an untrusted one reports.
-fn bodies(commands: &[PackCommand]) -> impl Iterator<Item = (&PackCommand, &HookDecl)> {
-    commands.iter().flat_map(|command| {
-        command
-            .hooks
-            .iter()
-            .filter(|hook| matches!(hook.source, HookSource::Body { .. }))
-            .map(move |hook| (command, hook))
-    })
-}
 
 /// One pack's declared hook **bodies**, as the host takes them.
 ///
@@ -185,69 +173,6 @@ fn programs_with_sources(
         });
     }
     (programs, sources)
-}
-
-// Execution gated on trust
-
-/// Whether a pack hook body of `provenance` runs — the execution half of the
-/// trust ruling (`docs/design/compiler/registry-consumer-contracts.md`
-/// § *Ruling — trust gates execution, not authority*).
-///
-/// Only a workspace the editor has not marked trusted holds its bodies
-/// dormant: a body runs per query on words the analysed document supplies,
-/// so it is the one pack surface whose inputs an untrusted workspace would
-/// choose. A Spec Studio override is untrusted for registration (it may not
-/// `-override` a compiled name) but runs — it is the author's own live edit,
-/// and its bodies answering is what the studio shows. Authority reads none
-/// of this: a dormant pack's declarative facts reach the registry unchanged.
-#[must_use]
-pub fn hook_bodies_run(provenance: Provenance) -> bool {
-    provenance != Provenance::WorkspaceUntrusted
-}
-
-/// A declared hook body that does not run, because its pack's provenance
-/// holds it dormant ([`hook_bodies_run`]).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DormantHook {
-    /// The pack that declares it.
-    pub pack: String,
-    /// The command it hangs off.
-    pub command: String,
-    /// The field it would fill (`const_fold`, `options.arity_hook`,
-    /// `state_transitions.resolver`, `evaluate`, …).
-    pub field: &'static str,
-    /// The file that declares it — the merge's record on the command, empty
-    /// for a pack evaluated from a source with no path.
-    pub file: PathBuf,
-    /// The line of the row that declares it ([`HookDecl::line`]).
-    pub line: u32,
-    /// The source subject of that row, when the loader issued one.
-    pub row: Option<tcl_lsp_core::code_actions::SpecPackNoticeSubject>,
-}
-
-/// The hook bodies `commands` declare that stay dormant for a pack named
-/// `pack` of `provenance`: every one when its bodies do not run, none
-/// otherwise. What the load reports ([`crate::pack::PackNotice::dormant`])
-/// and what [`HookPlan::dormant`] lists.
-#[must_use]
-pub fn dormant_hooks(
-    pack: &str,
-    commands: &[PackCommand],
-    provenance: Provenance,
-) -> Vec<DormantHook> {
-    if hook_bodies_run(provenance) {
-        return Vec::new();
-    }
-    bodies(commands)
-        .map(|(command, hook)| DormantHook {
-            pack: pack.to_owned(),
-            command: command.spec.name.to_owned(),
-            field: hook.field,
-            file: command.file.clone(),
-            line: hook.line,
-            row: hook.row.clone(),
-        })
-        .collect()
 }
 
 fn owner_of(owner: &DeclOwner) -> HookOwner {
