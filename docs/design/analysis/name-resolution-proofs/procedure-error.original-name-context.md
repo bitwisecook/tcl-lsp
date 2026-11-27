@@ -71,7 +71,7 @@ No original procedure parse-context capture for this provider is attached.
 
 ## Consumer bindings
 
-- [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::c84_procedure_parse_failures_match_7_native_original_object_completions` (linked): Compares definition/call completion, exact result/errorInfo/errorCode. The extra no-side-store assertion is Rust coverage beyond the original native observer fields.
+- [rust/tcl-vm-it/tests/it_5/command/tests.rs](../../../../rust/tcl-vm-it/tests/it_5/command/tests.rs), `command::tests::c84_procedure_parse_failures_match_7_native_original_object_completions` (linked): Compares definition/call completion, exact result/errorInfo/errorCode. The extra no-side-store assertion is Rust coverage beyond the original native observer fields.
 
 ## Evidence
 

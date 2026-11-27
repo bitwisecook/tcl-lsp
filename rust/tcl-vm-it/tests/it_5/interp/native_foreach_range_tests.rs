@@ -21,8 +21,6 @@
 //! returns continues and breaks where the loop exception range of
 //! `tcl::unsupported::disassemble proc p` says.
 
-use super::*;
-
 /// `(break, continue)` targets.
 type LoopTargets = (Option<i32>, Option<i32>);
 
@@ -38,22 +36,12 @@ fn compiled_with(
     params: &str,
     body: &str,
 ) -> (Vec<String>, Option<LoopTargets>) {
-    let mut vm = crate::native_fixture::interpreter(
+    let asm = &crate::fixture::procedure_body(
         tcl_dialect::DialectProfile::find(release.dialect_profile_name()).expect("release profile"),
+        "p",
+        params,
+        body,
     );
-    let words = ["p", params, body].map(|word| Value::new_native_string_bytes(word.as_bytes()));
-    let head = Value::new_native_string_bytes(b"proc".as_slice());
-    assert_eq!(
-        vm.invoke_host_original_object_vector(&head, &words).code,
-        Code::Ok
-    );
-    let Some(Command::Proc(command)) = vm.lookup_command("p") else {
-        panic!("{release:?}: procedure");
-    };
-    let prepared = vm
-        .ensure_proc_traced(command)
-        .unwrap_or_else(|error| panic!("{release:?}: {error:?}"));
-    let asm = &prepared.body.asm;
     let instructions = asm
         .instructions
         .iter()
@@ -174,17 +162,14 @@ fn a_bare_primary_condition_converts_before_its_jump_as_tclsh_does() {
 
 /// A top-level script's instructions as this VM compiles it for evaluation.
 fn script_compiled(release: tcl_dialect::TclVersion, script: &str) -> Vec<String> {
-    let mut vm = crate::native_fixture::interpreter(
+    crate::fixture::script_body(
         tcl_dialect::DialectProfile::find(release.dialect_profile_name()).expect("release profile"),
-    );
-    let unit = vm
-        .compile_script_cached(script)
-        .unwrap_or_else(|error| panic!("{release:?}: {error:?}"));
-    unit.asm
-        .instructions
-        .iter()
-        .map(|instruction| format!("{}:{}", instruction.offset, instruction.op.mnemonic()))
-        .collect()
+        script,
+    )
+    .instructions
+    .iter()
+    .map(|instruction| format!("{}:{}", instruction.offset, instruction.op.mnemonic()))
+    .collect()
 }
 
 /// The same source compiles to tclsh's stack-variable forms as a top-level

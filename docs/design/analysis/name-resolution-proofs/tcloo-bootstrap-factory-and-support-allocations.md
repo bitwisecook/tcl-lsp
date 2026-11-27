@@ -46,7 +46,7 @@ No appliance observation for this question.
 
 ## Consumer bindings
 
-- [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `interp::native_oo_bootstrap_inventory_tests::original_oo_bootstrap_inventory_keeps_roles_methods_and_namespace_currency` (linked): Compare actual backend root/support lifecycle/method/namespace relationships and refuse a foreign interpreter, epoch or replaced command generation. This coverage binding supplies no Rust execution, native compiler or Normal claim.
+- [rust/tcl-vm-it/tests/it_5/interp/native_oo_bootstrap_inventory_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/interp/native_oo_bootstrap_inventory_tests.rs), `interp::native_oo_bootstrap_inventory_tests::original_oo_bootstrap_inventory_keeps_roles_methods_and_namespace_currency` (linked): Compare actual backend root/support lifecycle/method/namespace relationships and refuse a foreign interpreter, epoch or replaced command generation. This coverage binding supplies no Rust execution, native compiler or Normal claim.
 
 ## Evidence
 

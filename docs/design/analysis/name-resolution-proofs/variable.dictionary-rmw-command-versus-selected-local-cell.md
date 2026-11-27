@@ -302,7 +302,7 @@ No appliance observation for this question.
 ## Consumer bindings
 
 - [rust/tcl-vm/src/cmd_dict.rs](../../../../rust/tcl-vm/src/cmd_dict.rs), `dictionary_command_and_local_cell_publication_match_345_complete_native_processes`: Independent current Rust comparison at the stated semantic boundary.
-- [rust/tcl-vm/src/cmd_dict.rs](../../../../rust/tcl-vm/src/cmd_dict.rs), `cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes` (linked): Compares exactly the 345 complete native result tuples; the 15 signal processes are not counted as passing controls.
+- [rust/tcl-vm-it/tests/it_5/cmd_dict/native_rmw_fixture_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_dict/native_rmw_fixture_tests.rs), `cmd_dict::native_rmw_fixture_tests::dictionary_command_and_local_cell_publication_match_345_complete_native_processes` (linked): Compares exactly the 345 complete native result tuples; the 15 signal processes are not counted as passing controls.
 
 ## Evidence
 

@@ -26,8 +26,6 @@
 //! without width suffixes: our 8.6 and 9.0 `try` keep shorter jumps than C's,
 //! which is the corpus work of #2545.
 
-use super::*;
-
 const CASES: &[(&str, &str, &str, &str)] = &[
     (
         "one",
@@ -80,25 +78,11 @@ const CASES: &[(&str, &str, &str, &str)] = &[
 ];
 
 fn disassembly(profile: &str, body: &str) -> Vec<(i32, &'static str)> {
-    let mut vm = crate::native_fixture::interpreter(
-        tcl_dialect::DialectProfile::find(profile).expect("release profile"),
-    );
-    let words = ["t", "x", body].map(|word| Value::new_native_string_bytes(word.as_bytes()));
-    let head = Value::new_native_string_bytes(b"proc".as_slice());
-    assert_eq!(
-        vm.invoke_host_original_object_vector(&head, &words).code,
-        Code::Ok
-    );
-    let Some(Command::Proc(command)) = vm.lookup_command("t") else {
-        panic!("{profile}: procedure");
-    };
-    let prepared = vm
-        .ensure_proc_traced(command)
-        .unwrap_or_else(|error| panic!("{profile}: {error:?}"));
-    let wide = vm.runtime_version().emits_wide_instructions_only();
-    prepared
-        .body
-        .asm
+    let profile = tcl_dialect::DialectProfile::find(profile).expect("release profile");
+    let wide = tcl_vm::test_support::profile(profile.name)
+        .runtime_version()
+        .is_some_and(tcl_dialect::TclVersion::emits_wide_instructions_only);
+    crate::fixture::procedure_body(profile, "t", "x", body)
         .instructions
         .iter()
         .map(|instruction| {
@@ -229,7 +213,7 @@ handlerraise/n=1:H2:1:"#;
 #[test]
 fn try_dispatch_answers_as_tclsh_does() {
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-        let mut vm = crate::native_fixture::interpreter(
+        let mut vm = crate::fixture::interpreter(
             tcl_dialect::DialectProfile::find(profile).expect("release profile"),
         );
         let completion = vm
@@ -296,7 +280,7 @@ two=0:2xZ:0";
 #[test]
 fn subst_dispatch_answers_as_tclsh_does() {
     for profile in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-        let mut vm = crate::native_fixture::interpreter(
+        let mut vm = crate::fixture::interpreter(
             tcl_dialect::DialectProfile::find(profile).expect("release profile"),
         );
         let completion = vm

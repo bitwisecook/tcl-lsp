@@ -207,3 +207,188 @@ pub fn run(vm: &mut Vm, name: &str, words: &[&str]) -> (tcl_runtime_api::Code, V
     let completion = call(vm, name, &words);
     (completion.code, bytes(vm, &completion.result))
 }
+
+type Compiled = Rc<std::cell::RefCell<Vec<(bool, tcl_bytecode::FunctionAsm)>>>;
+
+/// The release's own compiler, keeping each script and procedure body it
+/// compiles, marked `true` for a procedure.
+struct Recording {
+    inner: tcl_codegen::compile_service::BytecodeCompileService,
+    compiled: Compiled,
+}
+
+impl Recording {
+    fn keep(
+        &self,
+        procedure: bool,
+        module: Result<tcl_bytecode::ModuleAsm, tcl_runtime_api::CompileError>,
+    ) -> Result<tcl_bytecode::ModuleAsm, tcl_runtime_api::CompileError> {
+        if let Ok(module) = &module {
+            self.compiled
+                .borrow_mut()
+                .push((procedure, module.top_level.clone()));
+        }
+        module
+    }
+}
+
+macro_rules! delegate {
+    ($($name:ident($($arg:ident: $ty:ty),*) -> $ret:ty;)*) => {
+        $(fn $name(&self, $($arg: $ty),*) -> $ret {
+            self.inner.$name($($arg),*)
+        })*
+    };
+}
+
+macro_rules! delegate_scripts {
+    ($($name:ident($($arg:ident: $ty:ty),*);)*) => {
+        $(fn $name(&self, $($arg: $ty),*) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            self.keep(false, self.inner.$name($($arg),*))
+        })*
+    };
+}
+
+impl tcl_runtime_api::CompileService for Recording {
+    type Module = tcl_bytecode::ModuleAsm;
+
+    delegate_scripts! {
+        compile_substitution_with_entry(target: tcl_runtime_api::native_substitution::NativeSubstitutionTarget<'_>, profile: &'static tcl_dialect::DialectProfile, entry: tcl_runtime_api::native_substitution::NativeSubstitutionCompilationEntry<'_>);
+        compile_script_bytes_for_profile(target: tcl_runtime_api::ScriptCompileTargetBytes<'_>, profile: &'static tcl_dialect::DialectProfile);
+        compile_plain_script_bytes_for_profile(target: tcl_runtime_api::ScriptCompileTargetBytes<'_>, profile: &'static tcl_dialect::DialectProfile);
+        compile_script_bytes_with_entry(target: tcl_runtime_api::ScriptCompileTargetBytes<'_>, profile: &'static tcl_dialect::DialectProfile, entry: &tcl_runtime_api::NativeCompilationEntry);
+        compile_plain_script_bytes_with_entry(target: tcl_runtime_api::ScriptCompileTargetBytes<'_>, profile: &'static tcl_dialect::DialectProfile, entry: &tcl_runtime_api::NativeCompilationEntry);
+        compile(src: &str);
+        compile_for_profile(src: &str, profile: &'static tcl_dialect::DialectProfile);
+        compile_script_for_profile(target: tcl_runtime_api::ScriptCompileTarget<'_>, profile: &'static tcl_dialect::DialectProfile);
+        compile_traced(src: &str);
+        compile_traced_for_profile(src: &str, profile: &'static tcl_dialect::DialectProfile);
+        compile_plain_dispatch_for_profile(src: &str, profile: &'static tcl_dialect::DialectProfile);
+        compile_plain_script_for_profile(target: tcl_runtime_api::ScriptCompileTarget<'_>, profile: &'static tcl_dialect::DialectProfile);
+        compile_script_with_entry(target: tcl_runtime_api::ScriptCompileTarget<'_>, profile: &'static tcl_dialect::DialectProfile, entry: &tcl_runtime_api::NativeCompilationEntry);
+    }
+
+    delegate! {
+        script_command_plan_bytes_for_profile(source: &tcl_lexer::SourceImage, profile: &'static tcl_dialect::DialectProfile) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError>;
+        script_command_plan_bytes_with_entry(source: &tcl_lexer::SourceImage, profile: &'static tcl_dialect::DialectProfile, entry: &tcl_runtime_api::NativeCompilationEntry) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError>;
+        script_command_plan_for_profile(src: &str, profile: &'static tcl_dialect::DialectProfile) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError>;
+        compile_failure_for_profile(src: &str, profile: &'static tcl_dialect::DialectProfile, unit: tcl_runtime_api::CompileUnit) -> Option<tcl_runtime_api::CompileFailure>;
+    }
+
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.keep(
+            true,
+            self.inner
+                .compile_procedure_bytes_for_profile(target, profile, dispatch),
+        )
+    }
+
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTargetBytes<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.keep(
+            true,
+            self.inner
+                .compile_procedure_bytes_with_entry(target, profile, entry, dispatch),
+        )
+    }
+
+    fn compile_original_procedure_bytes_with_entry(
+        &self,
+        request: &tcl_runtime_api::native_procedure_compilation::OriginalProcedureCompileRequest,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.keep(
+            true,
+            self.inner
+                .compile_original_procedure_bytes_with_entry(request, profile, entry, dispatch),
+        )
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        entry: &tcl_runtime_api::NativeCompilationEntry,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.keep(
+            true,
+            self.inner
+                .compile_procedure_with_entry(target, profile, entry, dispatch),
+        )
+    }
+
+    fn compile_procedure_for_profile(
+        &self,
+        target: tcl_runtime_api::ProcedureCompileTarget<'_>,
+        profile: &'static tcl_dialect::DialectProfile,
+        dispatch: tcl_runtime_api::ProcedureDispatch,
+    ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+        self.keep(
+            true,
+            self.inner
+                .compile_procedure_for_profile(target, profile, dispatch),
+        )
+    }
+}
+
+/// The body `profile`'s compiler produces when the VM first calls
+/// `proc name params body`, the first procedure it compiles, captured
+/// through the public compiler seam.
+pub fn procedure_body(
+    profile: &'static tcl_dialect::DialectProfile,
+    name: &str,
+    params: &str,
+    body: &str,
+) -> tcl_bytecode::FunctionAsm {
+    let (mut vm, compiled) = recording(profile);
+    let words = [name, params, body].map(tcl_vm::Value::string);
+    assert_eq!(
+        call(&mut vm, "proc", &words).code,
+        tcl_runtime_api::Code::Ok
+    );
+    let arguments: Vec<_> = params
+        .split_whitespace()
+        .map(|_| tcl_vm::Value::string("1"))
+        .collect();
+    let _ = vm.try_invoke_command(name, &arguments);
+    first(&compiled, true).unwrap_or_else(|| panic!("{name}: a compiled procedure body"))
+}
+
+fn recording(profile: &'static tcl_dialect::DialectProfile) -> (Vm, Compiled) {
+    let mut vm = core(profile);
+    let compiled = Rc::new(std::cell::RefCell::new(Vec::new()));
+    vm.set_compiler(Box::new(Recording {
+        inner: tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
+        compiled: Rc::clone(&compiled),
+    }));
+    (vm, compiled)
+}
+
+fn first(compiled: &Compiled, procedure: bool) -> Option<tcl_bytecode::FunctionAsm> {
+    let mut compiled = compiled.borrow_mut();
+    let index = compiled.iter().position(|(kind, _)| *kind == procedure)?;
+    Some(compiled.swap_remove(index).1)
+}
+
+/// The top level `profile`'s compiler produces when the VM evaluates
+/// `script`, the first script it compiles.
+pub fn script_body(
+    profile: &'static tcl_dialect::DialectProfile,
+    script: &str,
+) -> tcl_bytecode::FunctionAsm {
+    let (mut vm, compiled) = recording(profile);
+    let _ = vm.try_eval_source(script);
+    first(&compiled, false).unwrap_or_else(|| panic!("{script}: a compiled script"))
+}

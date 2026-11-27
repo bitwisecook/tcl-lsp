@@ -16,20 +16,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Original descendant namespace allocation and real teardown callbacks.
+//! A namespace created inside a dying ancestor during its teardown, against
+//! the tclsh captures.
 
-use super::{Vm, ok};
-use crate::interp::native_name_world::NameWorldCell;
-use crate::{
-    Value,
-    command::{Command, NativeCommand},
-};
-use std::{
-    cell::Cell,
-    rc::{Rc, Weak},
-};
-use tcl_core_types::{ByteNamespacePath, NsId, ROOT_NS};
-use tcl_runtime_api::{Code, Completion};
+use crate::prelude::*;
+use std::cell::Cell;
+use tcl_vm::NativeCommand;
+
+fn ok(value: Value) -> Completion<Value> {
+    Completion::new(Code::Ok, value, Value::empty())
+}
 
 fn unhex(value: &str) -> Vec<u8> {
     value
@@ -75,6 +71,9 @@ namespace eval retiring {
     namespace eval Existing {variable before BEFORE}
     variable sentinel HELD
 }
+proc observe_original_ancestor {} {
+    string match ::retiring::* [uplevel 1 {namespace current}]
+}
 proc during args {
     incr ::callback_count
     namespace eval $::target {
@@ -91,36 +90,6 @@ namespace delete ::retiring
 list $::observations [namespace exists ::retiring] [namespace exists $::target] [info exists ${::target}::value] [info commands ${::target}::p] $::callback_count
 ";
 
-struct ObserveAncestor {
-    original: NsId,
-    world: Weak<NameWorldCell>,
-}
-impl NativeCommand for ObserveAncestor {
-    fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
-        assert!(
-            self.world
-                .upgrade()
-                .is_some_and(|world| Rc::ptr_eq(&world, &vm.name_world))
-        );
-        assert!(vm.native_namespace_token_has_owner(self.original));
-        let mut selected = Some(vm.current_ns_id());
-        let world = vm.name_world.borrow();
-        let mut found = false;
-        while let Some(namespace) = selected {
-            if namespace == self.original {
-                found = true;
-                break;
-            }
-            selected = world
-                .ns_parents
-                .get(namespace.0 as usize)
-                .copied()
-                .flatten();
-        }
-        ok(Value::int(i64::from(found)))
-    }
-}
-
 struct RetiringCommand(Rc<Cell<usize>>);
 impl NativeCommand for RetiringCommand {
     fn invoke(&self, _: &mut Vm, _: &[Value]) -> Completion<Value> {
@@ -128,7 +97,7 @@ impl NativeCommand for RetiringCommand {
     }
     fn retire(&self, vm: &mut Vm) -> Completion<Value> {
         self.0.set(self.0.get() + 1);
-        vm.eval_source("during").unwrap()
+        crate::fixture::eval(vm, "during")
     }
 }
 
@@ -136,31 +105,31 @@ const DYING_DESCENDANT_ROWS: [(tcl_dialect::TclVersion, &str); 5] = [
     (
         tcl_dialect::TclVersion::V8_4,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl8.4/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl8.4/stdout.tsv"
         ),
     ),
     (
         tcl_dialect::TclVersion::V8_5,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl8.5/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl8.5/stdout.tsv"
         ),
     ),
     (
         tcl_dialect::TclVersion::V8_6,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl8.6/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl8.6/stdout.tsv"
         ),
     ),
     (
         tcl_dialect::TclVersion::V9_0,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl9.0/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl9.0/stdout.tsv"
         ),
     ),
     (
         tcl_dialect::TclVersion::V9_1,
         include_str!(
-            "../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl9.1/stdout.tsv"
+            "../../../../tcl-registry/tests/data/native_dying_descendant_physical/tcl9.1/stdout.tsv"
         ),
     ),
 ];
@@ -175,48 +144,33 @@ fn original_missing_descendant_has_the_dying_ancestor_and_is_destroyed_with_it()
             ("EXISTING_CHILD", b"::retiring::Existing"),
         ] {
             for command_window in [false, true] {
-                let mut vm = crate::native_fixture::interpreter(
-                    crate::environment::profile_for_dialect(version.dialect_profile_name()),
-                );
+                let mut vm = crate::fixture::interpreter(tcl_vm::test_support::profile(
+                    version.dialect_profile_name(),
+                ));
                 assert_eq!(
-                    vm.eval_source(std::str::from_utf8(&setup(target)).unwrap())
-                        .unwrap()
+                    crate::fixture::eval(&mut vm, std::str::from_utf8(&setup(target)).unwrap())
                         .code,
                     Code::Ok
                 );
-                let original = vm
-                    .native_namespace_context_for_path(&ByteNamespacePath::from_segments([
-                        b"retiring".as_slice(),
-                    ]))
-                    .unwrap();
-                vm.register_command(
-                    "observe_original_ancestor",
-                    Command::Native(Rc::new(ObserveAncestor {
-                        original,
-                        world: Rc::downgrade(&vm.name_world),
-                    })),
-                );
                 let calls = Rc::new(Cell::new(0));
                 if command_window {
-                    vm.register_command(
+                    vm.register_native_command(
                         "::retiring::sentinel_command",
-                        Command::Native(Rc::new(RetiringCommand(Rc::clone(&calls)))),
+                        Rc::new(RetiringCommand(Rc::clone(&calls))),
                     );
                 } else {
                     assert_eq!(
-                        vm.eval_source(if version == tcl_dialect::TclVersion::V8_4 {
+                        crate::fixture::eval(&mut vm, if version == tcl_dialect::TclVersion::V8_4 {
                             "namespace eval retiring {trace variable sentinel u ::during}"
                         } else {
                             "namespace eval retiring {trace add variable sentinel unset ::during}"
                         })
-                        .unwrap()
                         .code,
                         Code::Ok
                     );
                 }
-                let completion = vm
-                    .eval_source(std::str::from_utf8(FINISH).unwrap())
-                    .unwrap();
+                let completion =
+                    crate::fixture::eval(&mut vm, std::str::from_utf8(FINISH).unwrap());
                 let label = format!(
                     "{}_{}",
                     if command_window { "COMMAND" } else { "UNSET" },
@@ -228,15 +182,18 @@ fn original_missing_descendant_has_the_dying_ancestor_and_is_destroyed_with_it()
                     "{version:?}/{label}/{completion:?}"
                 );
                 assert_eq!(
-                    vm.native_name_operand_bytes(&completion.result)
-                        .unwrap()
-                        .as_ref(),
+                    crate::fixture::bytes(&vm, &completion.result),
                     expected(rows, &label),
                     "{version:?}/{label}"
                 );
                 assert_eq!(calls.get(), usize::from(command_window));
-                assert!(vm.execution_refusal.is_none(), "{version:?}/{label}");
-                assert_eq!(vm.current_ns_id(), ROOT_NS);
+                assert_eq!(
+                    crate::fixture::eval(&mut vm, "namespace current")
+                        .result
+                        .to_str()
+                        .as_ref(),
+                    "::"
+                );
             }
         }
     }

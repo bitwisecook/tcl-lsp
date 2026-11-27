@@ -90,7 +90,7 @@ No appliance observation for this question.
 
 - [rust/tcl-vm/src/cmd_namespace.rs](../../../../rust/tcl-vm/src/cmd_namespace.rs), `namespace_upvar_grammar_and_target_cells_match_36_native_results`: Independent current Rust comparison at the stated semantic boundary.
 - [runtime/rust/src/cmd_namespace/native_upvar_tests.rs](../../../../runtime/rust/src/cmd_namespace/native_upvar_tests.rs), `namespace_upvar_grammar_and_target_cells_match_36_native_results`: Independent current Rust comparison at the stated semantic boundary.
-- [rust/tcl-vm/src/cmd_namespace.rs](../../../../rust/tcl-vm/src/cmd_namespace.rs), `cmd_namespace::native_upvar_fixture_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results` (linked): Compares all thirty-six original script completions and target-cell results, including unsupported C84.
+- [rust/tcl-vm-it/tests/it_5/cmd_namespace/native_upvar_fixture_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/cmd_namespace/native_upvar_fixture_tests.rs), `cmd_namespace::native_upvar_fixture_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results` (linked): Compares all thirty-six original script completions and target-cell results, including unsupported C84.
 - [runtime/rust/src/cmd_namespace/native_upvar_tests.rs](../../../../runtime/rust/src/cmd_namespace/native_upvar_tests.rs), `cmd_namespace::native_upvar_tests::namespace_upvar_grammar_and_target_cells_match_36_native_results` (linked): Independently compares the same thirty-six scripts in the Runtime original native core.
 
 ## Evidence

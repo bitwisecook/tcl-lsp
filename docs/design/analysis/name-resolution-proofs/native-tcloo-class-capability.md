@@ -36,7 +36,7 @@ No appliance observation for this question.
 
 - [rust/tcl-runtime-api/src/native_oo.rs](../../../../rust/tcl-runtime-api/src/native_oo.rs), `NativeCompilationEntry::original_oo_class`: Current actual OO command/allocation/namespace join, without body or compiler authority.
 - [rust/tcl-vm/src/cmd_oo/native_bootstrap.rs](../../../../rust/tcl-vm/src/cmd_oo/native_bootstrap.rs), `capture`: Observe actual VM allocation/table/lifecycle/namespace ownership independently of labels.
-- [rust/tcl-vm/src/interp.rs](../../../../rust/tcl-vm/src/interp.rs), `interp::native_oo_bootstrap_inventory_tests::original_oo_bootstrap_inventory_keeps_roles_methods_and_namespace_currency` (linked): Actual VM root/support roles and method/lifecycle/private-namespace relationships retain their own allocations; foreign interpreter, stale epoch and replaced command generation withdraw the class selection.
+- [rust/tcl-vm-it/tests/it_5/interp/native_oo_bootstrap_inventory_tests.rs](../../../../rust/tcl-vm-it/tests/it_5/interp/native_oo_bootstrap_inventory_tests.rs), `interp::native_oo_bootstrap_inventory_tests::original_oo_bootstrap_inventory_keeps_roles_methods_and_namespace_currency` (linked): Actual VM root/support roles and method/lifecycle/private-namespace relationships retain their own allocations; foreign interpreter, stale epoch and replaced command generation withdraw the class selection.
 
 ## Evidence
 

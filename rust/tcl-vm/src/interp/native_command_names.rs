@@ -1089,6 +1089,12 @@ impl Vm {
     }
 }
 
+/// A dispatch head's resolved visible key and the state it was resolved under.
+pub(crate) struct ResolvedHead {
+    pub(crate) key: Option<String>,
+    pub(crate) stamp: super::CommandLookupStamp,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1115,40 +1121,6 @@ mod tests {
             "cmdName"
         } else {
             "none"
-        }
-    }
-
-    #[test]
-    fn native_namespace_origin_retains_string_result_birth_and_opaque_diagnostics() {
-        // Native proof naming.namespace.origin-generated-opaque-failure-units:
-        // docs/design/analysis/name-resolution-proofs/namespace-origin-generated-opaque-failure-units.md
-        let source = include_bytes!(
-            "../../../../runtime/rust/tests/data/native_namespace_origin_failures/source.tcl"
-        );
-        let rows = include_str!(
-            "../../../../runtime/rust/tests/data/native_namespace_origin_failures/controls.tsv"
-        );
-        for (version, row) in TclVersion::ALL.into_iter().zip(rows.lines()) {
-            let mut vm = crate::native_fixture::interpreter(
-                tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap(),
-            );
-            // The retained observer measures binary-scan units after the catch,
-            // independently of the result's native modified-UTF-8 string bytes.
-            let mut observer = b"set observed [".to_vec();
-            observer.extend_from_slice(source.trim_ascii());
-            observer.extend_from_slice(b"]\nbinary scan $observed H* hex\nset hex");
-            let completion = vm.try_eval_source_bytes(&observer).unwrap();
-            assert_eq!(completion.code, crate::Code::Ok, "{version:?}");
-            let expected = tcl_test_support::fixture::tsv_split_once(row).unwrap().1;
-            assert_eq!(
-                vm.native_name_operand_bytes(&completion.result)
-                    .unwrap()
-                    .as_ref(),
-                expected.as_bytes(),
-                "{version:?}"
-            );
-            let result = vm.native_namespace_origin_result(b"::selected").unwrap();
-            assert_eq!(result.native_object_type_name(), "string");
         }
     }
 
@@ -1430,13 +1402,4 @@ mod tests {
         );
         assert!(original.native_command_name_cache().is_some());
     }
-}
-
-#[cfg(test)]
-mod info_commands_literal_tests;
-
-/// A dispatch head's resolved visible key and the state it was resolved under.
-pub(crate) struct ResolvedHead {
-    pub(crate) key: Option<String>,
-    pub(crate) stamp: super::CommandLookupStamp,
 }

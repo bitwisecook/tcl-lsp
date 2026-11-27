@@ -37,10 +37,6 @@ pub(super) struct NativeErrorStack {
     metadata: ErrorStack<()>,
 }
 impl NativeErrorStack {
-    #[cfg(test)]
-    pub(super) fn original_inner_context(&self) -> Option<std::cell::Ref<'_, Value>> {
-        self.inner_context.as_ref().map(|context| context.borrow())
-    }
     pub(super) fn configure(
         &mut self,
         recipe: Option<tcl_registry::native_error_objects::NativeErrorObjectsProtocol>,

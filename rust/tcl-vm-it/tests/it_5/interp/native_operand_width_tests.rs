@@ -22,8 +22,6 @@
 //! Each row is `tcl::unsupported::disassemble proc p` as `pc:mnemonic` on
 //! tclsh 9.0.4 and 9.1.0.
 
-use super::*;
-
 const CASES: &[(&str, &str, &str)] = &[
     (
         "set a 1; incr a",
@@ -53,25 +51,11 @@ const CASES: &[(&str, &str, &str)] = &[
 ];
 
 fn disassembly(profile: &str, body: &str) -> String {
-    let mut vm = crate::native_fixture::interpreter(
-        tcl_dialect::DialectProfile::find(profile).expect("release profile"),
-    );
-    let words = ["p", "", body].map(|word| Value::new_native_string_bytes(word.as_bytes()));
-    let head = Value::new_native_string_bytes(b"proc".as_slice());
-    assert_eq!(
-        vm.invoke_host_original_object_vector(&head, &words).code,
-        Code::Ok
-    );
-    let Some(Command::Proc(command)) = vm.lookup_command("p") else {
-        panic!("{profile}: procedure");
-    };
-    let prepared = vm
-        .ensure_proc_traced(command)
-        .unwrap_or_else(|error| panic!("{profile}: {error:?}"));
-    let wide = vm.runtime_version().emits_wide_instructions_only();
-    prepared
-        .body
-        .asm
+    let profile = tcl_dialect::DialectProfile::find(profile).expect("release profile");
+    let wide = tcl_vm::test_support::profile(profile.name)
+        .runtime_version()
+        .is_some_and(tcl_dialect::TclVersion::emits_wide_instructions_only);
+    crate::fixture::procedure_body(profile, "p", "", body)
         .instructions
         .iter()
         .map(|instruction| {

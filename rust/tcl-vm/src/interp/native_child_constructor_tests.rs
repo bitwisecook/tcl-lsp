@@ -168,36 +168,3 @@ fn jim_child_copies_only_existing_parent_globals_with_the_original_cstring_exten
     );
     assert!(vm.execution_refusal.is_none());
 }
-
-#[test]
-fn child_startup_copy_ignores_parent_local_shadows_and_c_has_no_copy_recipe() {
-    let mut vm = core("jim");
-    vm.set_compiler(Box::new(
-        tcl_codegen::compile_service::BytecodeCompileService::for_profile(
-            crate::environment::profile_for_dialect("jim"),
-        ),
-    ));
-    let completion = vm.try_eval_source(
-            "set argv GLOBAL; proc create_with_local {} {set argv LOCAL; interp}; create_with_local",
-        ).unwrap();
-    assert_eq!(completion.code, Code::Ok);
-    let name = completion.result.resident_string_bytes().unwrap();
-    let id = vm.child_id(std::str::from_utf8(&name).unwrap()).unwrap();
-    vm.in_interp(id, |child| {
-        assert_eq!(
-            child
-                .get_var("argv")
-                .unwrap()
-                .resident_string_bytes()
-                .unwrap()
-                .as_ref(),
-            b"GLOBAL"
-        );
-    });
-    let mut c = core("tcl9.0");
-    c.write_scalar_raw("argv", Value::string("parent"));
-    let id = c
-        .create_child_named_bytes(NameBytes::from(b"child"), false)
-        .unwrap();
-    c.in_interp(id, |child| assert!(child.get_var("argv").is_none()));
-}

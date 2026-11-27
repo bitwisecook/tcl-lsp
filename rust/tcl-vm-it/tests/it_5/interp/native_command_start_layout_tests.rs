@@ -27,7 +27,7 @@
 //! `N` is a selection `nop` C has no byte for. `catch_break` is compactible
 //! from 8.6, where C's second pass drops every marker.
 
-use super::*;
+use crate::prelude::*;
 use tcl_bytecode::{Op, Operand};
 
 struct Case {
@@ -143,23 +143,12 @@ const CASES: &[Case] = &[
 ];
 
 fn compiled_body(profile: &str, case: &Case) -> Rc<tcl_bytecode::FunctionAsm> {
-    let mut vm = crate::native_fixture::interpreter(
+    Rc::new(crate::fixture::procedure_body(
         tcl_dialect::DialectProfile::find(profile).expect("release profile"),
-    );
-    let words = [case.name, case.params, case.body]
-        .map(|word| Value::new_native_string_bytes(word.as_bytes()));
-    let head = Value::new_native_string_bytes(b"proc".as_slice());
-    assert_eq!(
-        vm.invoke_host_original_object_vector(&head, &words).code,
-        Code::Ok
-    );
-    let Some(Command::Proc(command)) = vm.lookup_command(case.name) else {
-        panic!("{profile}/{}: procedure", case.name);
-    };
-    let prepared = vm
-        .ensure_proc_traced(command)
-        .unwrap_or_else(|error| panic!("{profile}/{}: {error:?}", case.name));
-    Rc::clone(&prepared.body.asm)
+        case.name,
+        case.params,
+        case.body,
+    ))
 }
 
 fn skeleton(asm: &tcl_bytecode::FunctionAsm) -> String {
@@ -217,7 +206,7 @@ fn tcl_8_4_bodies_have_no_start_command() {
             skeleton(&asm)
         );
     }
-    let mut vm = crate::native_fixture::interpreter(
+    let mut vm = crate::fixture::interpreter(
         tcl_dialect::DialectProfile::find("tcl8.4").expect("release profile"),
     );
     let completion = vm
@@ -257,7 +246,7 @@ fn a_redefined_command_starting_with_others_replays_the_outermost() {
         ("tcl9.0", replayed),
         ("tcl9.1", replayed),
     ] {
-        let mut vm = crate::native_fixture::interpreter(
+        let mut vm = crate::fixture::interpreter(
             tcl_dialect::DialectProfile::find(profile).expect("release profile"),
         );
         let completion = vm

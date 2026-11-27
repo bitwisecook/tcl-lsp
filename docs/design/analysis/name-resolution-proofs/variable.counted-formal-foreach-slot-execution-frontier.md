@@ -62,7 +62,7 @@ No appliance observation for this question.
 ## Consumer bindings
 
 - [rust/tcl-vm/src/interp/native_compiled_locals.rs](../../../../rust/tcl-vm/src/interp/native_compiled_locals.rs), `compiled_foreach_matches_twelve_original_native_slot_records`: Independent current Rust comparison at the stated semantic boundary.
-- [rust/tcl-vm/src/interp/native_compiled_locals.rs](../../../../rust/tcl-vm/src/interp/native_compiled_locals.rs), `interp::native_compiled_locals::tests::compiled_foreach_matches_twelve_original_native_slot_records` (linked): Compares all twelve original definition/invocation tuples, including every C arity failure; it does not claim twelve successful loop bodies.
+- [rust/tcl-vm-it/tests/it_5/interp/native_compiled_locals/tests.rs](../../../../rust/tcl-vm-it/tests/it_5/interp/native_compiled_locals/tests.rs), `interp::native_compiled_locals::tests::compiled_foreach_matches_twelve_original_native_slot_records` (linked): Compares all twelve original definition/invocation tuples, including every C arity failure; it does not claim twelve successful loop bodies.
 
 ## Evidence
 

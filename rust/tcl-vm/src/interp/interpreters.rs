@@ -19,14 +19,8 @@
 //! The interpreter tree: the arena and switching the current interpreter, child interpreters and their command form, aliases, hidden commands and safe interpreters.
 
 use super::commands::CommandSidecarKey;
-#[cfg(test)]
-use super::err;
 use super::{InterpId, InterpSlot, InterpState, Vm, native_operation_currency};
 use crate::command::Command;
-#[cfg(test)]
-use crate::value::Value;
-#[cfg(test)]
-use tcl_runtime_api::Completion;
 
 mod aliases;
 mod child_command;
@@ -327,40 +321,5 @@ impl Vm {
         debug_assert!(slot.dying && slot.active == 0);
         slot.parked = None;
         self.alias_backrefs.retain(|b| b.source != id);
-    }
-
-    /// Resolve an `interp` path from the current interpreter: `""`/`{}` names
-    /// the current interp, and each list element steps into the named child
-    /// (C's multi-level paths — `interp eval {a b} …` addresses grandchild
-    /// `b`).  A plain name is the common single-element case.
-    #[cfg(test)]
-    pub(crate) fn resolve_interp_path(&self, path: &str) -> Result<InterpId, Completion<Value>> {
-        if path.is_empty() {
-            return Ok(self.cur);
-        }
-        let needs_split = path
-            .bytes()
-            .any(|b| b.is_ascii_whitespace() || matches!(b, b'{' | b'}' | b'"' | b'\\'));
-        let elems: Vec<String> = if needs_split {
-            match tcl_syntax::list::split_list(path) {
-                Ok(e) => e.into_iter().map(std::borrow::Cow::into_owned).collect(),
-                Err(_) => {
-                    return Err(err(format!("could not find interpreter \"{path}\"")));
-                }
-            }
-        } else {
-            vec![path.to_string()]
-        };
-        let mut cur = self.cur;
-        for name in &elems {
-            let next = self
-                .st_of(cur)
-                .and_then(|st| st.children.get(name.as_bytes()).copied());
-            match next {
-                Some(c) if self.interp_alive(c) => cur = c,
-                _ => return Err(err(format!("could not find interpreter \"{path}\""))),
-            }
-        }
-        Ok(cur)
     }
 }

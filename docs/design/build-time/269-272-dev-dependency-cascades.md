@@ -978,3 +978,43 @@ class made by `oo::class create C` gives an empty list; tclsh 8.6.18, 9.0.4
 and 9.1.0 give `::oo::object`.
 `interp::native_cache_tests::nested_info_compilation_retains_original_maps_and_late_worker_binding`
 compares the calls after the handler is replaced.
+
+**Batch 13, `interp` N (27 November 2026).** 62 tests in 16 files: 44 move to
+`tcl-vm-it` under their old module paths and 18 are deleted. Tests that reach
+a compiler drop from 161 to 99.
+- `it_5/fixture.rs` gains a recording compile service: it wraps the
+  release's `BytecodeCompileService`, delegates every method, and keeps each
+  script and procedure body it compiles. `fixture::procedure_body` defines
+  and calls a procedure and returns the first body compiled;
+  `fixture::script_body` does the same for an evaluated script. The
+  disassembly comparisons with tclsh (`native_try_dispatch_tests`,
+  `native_catch_info_exists_slot_tests`, `native_command_start_layout_tests`,
+  `native_foreach_range_tests`, `native_operand_width_tests`) read the body
+  through it, unchanged in substance; no bytecode-compare suite covered them.
+- `native_compiled_locals`' slot, `foreach` and `dict` epilogue tests move
+  whole; they compare codes and result bytes. The epilogue probe's reference
+  counts and the compiled-search entry count are cut.
+- `native_control_expression_tests` keeps every completion code and result
+  byte; the storage tables' object types, residency and literal-pool rows
+  are cut.
+- `native_dictionary`'s confined `dict update` of a missing key is a script
+  over `upvar #0`, confined by a host command; tclsh 8.6.18 and 9.0.4 give
+  the unconfined row.
+- `native_dying_descendant_tests` reads the dying ancestor with
+  `namespace current` instead of walking private namespace parents.
+- `native_error_variables` keeps the reset episodes' codes and `::errorInfo`
+  content, and 8.4's traced `::errorInfo`/`::errorCode` publication; the
+  child constructor test compares `interp`/`eval` with jimsh 0.84 and tclsh
+  8.4.20 and 9.0.4.
+- Rows skipped: Jim in `native_child_alias_publication_tests` (30 of 36
+  compared; its sources call jimsh's `binary`, installed only privately),
+  the host-pushed special frames of `native_error_log_tests` (6 of 12), and
+  the result bytes of Jim's whole-table `info commands` rows (`glob-star`,
+  `escaped-star`), which list jimsh's `alarm` from its signal extension.
+  `compiled_and_generic_info_commands_retain_one_hundred_eighty_six_original_header_windows`,
+  which failed before on object headers, now passes.
+- Deleted, with no script-visible behaviour:
+  - `interp::native_control_expression_tests`: `compiled_syntax_context_retains_same_native_message_and_options` and `compiled_return_context_retains_original_operands_without_annotation` (instruction-name literal objects, the private `innerContext` list and the return annotation)
+  - `interp::native_ensemble_rewrite_tests`: `callback_restores_handler_metadata_without_restoring_withdrawn_rewrite`, `internal_invoke_preserves_rewrite_but_native_bytecode_entry_withdraws_it`, `execution_trace_cannot_reinstall_a_captured_usage_prefix` (the private usage-rewrite stack, seeded by hand)
+  - `interp::native_error_variables::tests`: `confined_native_error_reads_keep_private_metadata_without_publication`, `syntax_compiler_reset_publishes_original_without_a_global_literal_owner`, `c84_execution_environment_constructor_retains_original_named_headers_and_independent_children`, `c84_execution_environment_reuses_physical_provider_and_retires_its_actual_birth`, `c84_execution_error_logging_uses_the_same_original_parsed_name_headers`, `c84_execution_error_name_missing_or_retired_birth_cannot_be_reconstructed`, `c84_string_global_error_code_setter_matches_original_scope_and_quiet_failure`, `c84_string_global_error_code_setter_refuses_foreign_provider_and_retired_header`, `c84_explicit_error_code_setter_retains_the_same_original_header`, `command_logging_publishes_same_private_header_only_to_user_traced_cells`, `original_private_error_primaries_and_script_reset_match_native_producers`, `hidden_error_read_unset_and_root_lifecycle_match_original_c_cells`, `original_error_result_is_weak_until_nonempty_info_append` (private error objects, their headers, births and identity, and error state seeded by hand)
+- Parity: no new failure in the lib and `it_5` suites.

@@ -122,32 +122,20 @@ mod native_bootstrap;
 mod native_cache_tests;
 mod native_command_names;
 pub(crate) use native_command_names::ResolvedHead;
-#[cfg(test)]
-mod native_catch_info_exists_slot_tests;
 mod native_command_slots;
-#[cfg(test)]
-mod native_command_start_layout_tests;
 mod native_compiled_append;
 pub(crate) mod native_compiled_locals;
-#[cfg(test)]
-mod native_control_expression_tests;
 mod native_coroutine_names;
 pub(crate) mod native_dictionary;
 #[cfg(test)]
-mod native_dying_descendant_tests;
-#[cfg(test)]
 mod native_embed_registration_tests;
 mod native_ensemble_objects;
-#[cfg(test)]
-mod native_ensemble_rewrite_tests;
 mod native_error_stack;
 mod native_error_variables;
 mod native_event_context;
 mod native_execution_constants;
 #[cfg(test)]
 mod native_expression_bool_tests;
-#[cfg(test)]
-mod native_foreach_range_tests;
 mod native_index_lookup;
 mod native_interpreter_paths;
 mod native_introspection;
@@ -168,11 +156,7 @@ mod native_namespace_address_tests;
 mod native_namespace_command_query_tests;
 mod native_namespace_names;
 #[cfg(test)]
-mod native_operand_width_tests;
-#[cfg(test)]
 mod native_source_manifest_tests;
-#[cfg(test)]
-mod native_try_dispatch_tests;
 pub(crate) use native_namespace_names::OriginalEnsembleNamespaceResult;
 #[cfg(test)]
 mod native_namespace_origin_tests;
@@ -1707,9 +1691,6 @@ mod compiled_variable_provider_tests;
 
 #[cfg(test)]
 mod native_array_unset_lifetime_tests;
-
-#[cfg(test)]
-mod native_error_log_tests;
 
 #[cfg(test)]
 mod native_result_tests;

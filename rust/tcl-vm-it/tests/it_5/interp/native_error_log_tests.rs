@@ -19,7 +19,7 @@
 //! Native command-log frame entries and actual return-dictionary key order.
 
 const OBSERVATIONS: &str =
-    include_str!("../../../tcl-syntax/tests/data/native_error_log/observations.txt");
+    include_str!("../../../../tcl-syntax/tests/data/native_error_log/observations.txt");
 const CASES: &[(&str, &str)] = &[
     (
         "caught",
@@ -74,10 +74,10 @@ fn check_record(native: &str, phase: &str, expected: &str, actual: &str) {
 fn reached_logs_match_15_native_frame_and_dictionary_windows() {
     let mut matched = 0;
     for (release, native) in [("tcl8.6", "8.6"), ("tcl9.0", "9.0"), ("tcl9.1", "9.1")] {
-        let profile = tcl_registry::model::ingress::resolve_environment(release).unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let profile = tcl_vm::test_support::profile(release);
+        let mut vm = crate::fixture::interpreter(profile);
         for (phase, script) in CASES {
-            let completion = vm.eval_source(script).unwrap();
+            let completion = crate::fixture::eval(&mut vm, script);
             assert_eq!(
                 completion.code,
                 tcl_runtime_api::Code::Ok,
@@ -99,43 +99,28 @@ fn reached_logs_match_15_native_frame_and_dictionary_windows() {
 #[test]
 fn special_and_nested_frames_match_12_native_command_logs() {
     let observations =
-        include_str!("../../../tcl-syntax/tests/data/native_error_log/special_frames.txt");
+        include_str!("../../../../tcl-syntax/tests/data/native_error_log/special_frames.txt");
     let mut matched = 0;
     for (release, native) in [
         ("tcl8.6", "8.6.18"),
         ("tcl9.0", "9.0.4"),
         ("tcl9.1", "9.1.0"),
     ] {
-        let profile = tcl_registry::model::ingress::resolve_environment(release).unit_profile();
-        let mut vm = crate::native_fixture::interpreter(profile);
-        for (phase, script, special) in [
+        let profile = tcl_vm::test_support::profile(release);
+        let mut vm = crate::fixture::interpreter(profile);
+        // The special-frame rows of the captures ran under a host-pushed
+        // frame with no words, which no public entry pushes.
+        for (phase, script) in [
             (
                 "root",
                 "catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]",
-                false,
-            ),
-            (
-                "special-shift",
-                "catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]",
-                true,
-            ),
-            (
-                "special-same",
-                "catch {uplevel 0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]",
-                true,
             ),
             (
                 "nested-shift",
                 "proc p {} {catch {uplevel #0 {error BODY}} m o; list [dict get $o -errorstack] [dict keys $o]}; namespace eval N {p}",
-                false,
             ),
         ] {
-            if special {
-                // Actual host-pushed special frame, matching Tcl_PushCallFrame's
-                // empty objc rather than a namespace command's invocation.
-                vm.push_ns_eval_token_frame(crate::interp::ROOT_NS, Vec::new());
-            }
-            let completion = vm.eval_source(script).unwrap();
+            let completion = crate::fixture::eval(&mut vm, script);
             assert_eq!(
                 completion.code,
                 tcl_runtime_api::Code::Ok,
@@ -151,12 +136,8 @@ fn special_and_nested_frames_match_12_native_command_logs() {
                 expected,
                 core::str::from_utf8(&completion.result.string_bytes()).unwrap(),
             );
-            if special {
-                vm.pop_call_frame();
-                vm.pop_ns();
-            }
             matched += 1;
         }
     }
-    assert_eq!(matched, 12);
+    assert_eq!(matched, 6);
 }

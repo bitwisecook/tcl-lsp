@@ -125,7 +125,7 @@ No retained observation of this exact question is attached for this provider.
 ## Consumer bindings
 
 - [rust/tcl-registry/src/native_procedure.rs](../../../../rust/tcl-registry/src/native_procedure.rs), `NativeProcedureActivationProtocol::validates_arguments_before_body`: Owns the release-selected activation boundary separately from definition capture.
-- [rust/tcl-vm/src/command.rs](../../../../rust/tcl-vm/src/command.rs), `command::tests::procedure_definition_and_activation_match_42_native_observations` (linked): Compares exact42 original shell definition/activation/side-effect lines; full runtime build and shell input-channel metadata remain separate absent fields.
+- [rust/tcl-vm-it/tests/it_5/command/tests.rs](../../../../rust/tcl-vm-it/tests/it_5/command/tests.rs), `command::tests::procedure_definition_and_activation_match_42_native_observations` (linked): Compares exact42 original shell definition/activation/side-effect lines; full runtime build and shell input-channel metadata remain separate absent fields.
 
 ## Evidence
 

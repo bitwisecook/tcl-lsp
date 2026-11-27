@@ -24,7 +24,7 @@
 //! allocates the result variable before compiling the body) but has no
 //! `info exists` compiler, so `pub` gets no slot there.
 
-use super::*;
+use crate::prelude::*;
 use tcl_bytecode::Op;
 
 struct Case {
@@ -105,23 +105,12 @@ const CASES: &[Case] = &[
 ];
 
 fn compiled_body(profile: &str, case: &Case) -> Rc<tcl_bytecode::FunctionAsm> {
-    let mut vm = crate::native_fixture::interpreter(
+    Rc::new(crate::fixture::procedure_body(
         tcl_dialect::DialectProfile::find(profile).expect("release profile"),
-    );
-    let words = [case.name, case.params, case.body]
-        .map(|word| Value::new_native_string_bytes(word.as_bytes()));
-    let head = Value::new_native_string_bytes(b"proc".as_slice());
-    assert_eq!(
-        vm.invoke_host_original_object_vector(&head, &words).code,
-        Code::Ok
-    );
-    let Some(Command::Proc(command)) = vm.lookup_command(case.name) else {
-        panic!("{profile}/{}: procedure", case.name);
-    };
-    let prepared = vm
-        .ensure_proc_traced(command)
-        .unwrap_or_else(|error| panic!("{profile}/{}: {error:?}", case.name));
-    Rc::clone(&prepared.body.asm)
+        case.name,
+        case.params,
+        case.body,
+    ))
 }
 
 fn slot_names(asm: &tcl_bytecode::FunctionAsm) -> Vec<String> {
