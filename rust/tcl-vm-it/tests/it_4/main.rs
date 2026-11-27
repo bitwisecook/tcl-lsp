@@ -25,6 +25,7 @@ mod capability;
 mod cmd_thread_e2e;
 #[path = "../common/mod.rs"]
 mod common;
+mod compiled_cache_list_length;
 mod cross_version_command_surface_e2e;
 mod cross_version_vars_e2e;
 mod formal_slot_identity;
