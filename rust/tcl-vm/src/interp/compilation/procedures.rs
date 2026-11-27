@@ -456,6 +456,19 @@ impl Vm {
                 dispatch,
             ),
         };
+        if dispatch == ProcedureDispatch::Optimised
+            && super::script_compilation::declines_native_selection(&reached)
+        {
+            drop(reached);
+            return self.compile_procedure_module(
+                compiler,
+                target,
+                source,
+                entry,
+                ProcedureDispatch::Plain,
+                original_name_scope,
+            );
+        }
         original_name_scope
             .check(self)
             .map_err(|error| self.original_name_cmd_error(error))?;
@@ -553,7 +566,10 @@ impl Vm {
             dispatch,
             original_name_scope,
         )?;
-        if !force_plain
+        if module.plain_command_dispatch {
+            dispatch = ProcedureDispatch::Plain;
+        }
+        if dispatch == ProcedureDispatch::Optimised
             && !self.function_command_bindings_match_with_manifest(
                 &module.top_level,
                 module.manifest.as_deref(),

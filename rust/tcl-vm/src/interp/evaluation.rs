@@ -161,6 +161,11 @@ impl Vm {
             self.source_profile(),
             &entry,
         );
+        if super::compilation::declines_native_selection(&compilation_outcome) {
+            return self
+                .compile_plain_module_as(src, &namespace, evaluation)
+                .map(Rc::new);
+        }
         let module = compilation_outcome.map_err(|error| {
             self.compile_service_error(
                 error,
@@ -365,6 +370,25 @@ impl Vm {
             c = self.settle_top_level(c);
         }
         c
+    }
+
+    /// [`Self::eval_file`] with a host refusal kept outside the Tcl
+    /// completion, as [`Self::try_eval_source`] keeps one: a refused native
+    /// admission is no error the file raised, so no `catch` saw it and its
+    /// `errorInfo` names nothing.
+    ///
+    /// # Errors
+    /// Returns the host refusal that stopped the file.
+    pub fn try_eval_file(
+        &mut self,
+        path: &str,
+        src: &str,
+        top_level: bool,
+    ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
+        self.host_execution_depth += 1;
+        let completion = self.eval_file(path, src, top_level);
+        self.host_execution_depth -= 1;
+        self.finish_host_execution(completion)
     }
 
     /// Evaluate source in the current frame through the actual Jim Script owner
