@@ -169,9 +169,6 @@ mod native_package_files;
 mod native_procedure_artifacts;
 mod native_rename;
 pub(crate) mod native_scalar_ingress;
-#[cfg(test)]
-#[path = "interp/native_upvar_info_exists_tests.rs"]
-mod native_upvar_info_exists_tests;
 mod native_variable_names;
 mod native_variable_observers;
 #[cfg(test)]

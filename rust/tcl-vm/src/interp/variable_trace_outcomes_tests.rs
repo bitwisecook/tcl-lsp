@@ -513,33 +513,6 @@ fn original_native_observer_guest_initializes_error_info_before_its_trace_frame(
 }
 
 #[test]
-fn original_script_trace_guest_keeps_its_existing_error_episode_through_presentation() {
-    // naming.embedding.original-host-publication-and-fact-transport
-    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let mut vm =
-            crate::native_fixture::interpreter(crate::environment::profile_for_dialect(profile));
-        let completion = vm.try_eval_source(
-            "proc original_trace_stop {args} {error STOP SCRIPT_MARKER}; trace add variable x write original_trace_stop; set x changed"
-        ).unwrap();
-        assert_eq!(completion.code, crate::Code::Error, "{profile}");
-        assert_eq!(
-            completion.result.string_bytes().as_ref(),
-            b"can't set \"x\": STOP"
-        );
-        let info = vm.native_errors.error_info.as_ref().unwrap();
-        assert!(info.starts_with(b"SCRIPT_MARKER"));
-        assert!(
-            info.windows(b"(write trace on \"x\")".len())
-                .any(|part| part == b"(write trace on \"x\")")
-        );
-        assert!(vm.execution_refusal.is_none());
-        assert_eq!(vm.active_traces, [] as [tcl_core_types::VarId; 0]);
-        assert!(!vm.has_entered_native_operation());
-    }
-}
-
-#[test]
 fn original_quiet_trace_guest_restores_the_selected_result_without_new_error_info() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md

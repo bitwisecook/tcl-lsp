@@ -988,8 +988,6 @@ tcl-vm	interp::native_namespace_origin_tests::original_namespace_origin_c85
 tcl-vm	interp::native_namespace_origin_tests::original_namespace_origin_c86
 tcl-vm	interp::native_namespace_origin_tests::original_namespace_origin_c90
 tcl-vm	interp::native_namespace_origin_tests::original_namespace_origin_c91
-tcl-vm	interp::native_upvar_info_exists_tests::original_exists_quiet_trace_semantics_preserve_15_native_result_windows
-tcl-vm	interp::native_upvar_info_exists_tests::original_upvar_and_exists_preserve_140_native_completions_and_20_name_headers
 tcl-vm	interp::native_variable_names::tests::active_read_unset_matches_five_original_source_controls
 tcl-vm	interp::native_variable_names::tests::array_root_write_diagnostics_match_five_original_source_controls
 tcl-vm	interp::native_variable_names::tests::dynamic_global_uses_original_compiler_token_tail_and_name_cache
@@ -1305,6 +1303,8 @@ tcl-vm-it::it_5	interp::native_introspection::tests::compiled_introspection_pres
 tcl-vm-it::it_5	interp::native_jim_links::alias_publication_tests::original_upvar_error_publication_matches_all_six_native_sources
 tcl-vm-it::it_5	interp::native_jim_links::tests::original_alias_read_errors_match_thirty_six_native_results
 tcl-vm-it::it_5	interp::native_precision_tests::original_precision_unset_matches_all_six_native_sources
+tcl-vm-it::it_5	interp::native_upvar_info_exists_tests::original_exists_quiet_trace_semantics_preserve_15_native_result_windows
+tcl-vm-it::it_5	interp::native_upvar_info_exists_tests::original_upvar_and_exists_preserve_140_native_completions_and_20_name_headers
 tcl-vm-it::it_5	native_return_merge::execution_tests::registered_return_instructions_match_44_native_controls
 tcl-vm-it::it_5	native_switch::tests::registered_switch_instructions_match_56_native_branch_controls
 tcl-vm-it::it_5	native_switch::tests::registered_switch_instructions_match_56_native_controls

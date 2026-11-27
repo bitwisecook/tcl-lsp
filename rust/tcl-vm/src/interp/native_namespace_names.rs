@@ -991,48 +991,6 @@ mod tests {
         assert_eq!(original.value().native_object_snapshot(), before);
     }
 
-    #[test]
-    fn qualified_inventory_keeps_existing_positive_command_and_variable_results() {
-        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let mut vm = crate::native_fixture::interpreter(
-                crate::environment::profile_for_dialect(release),
-            );
-            assert_eq!(
-                vm.eval_source("namespace eval selected {proc marker {} {}; variable item 1}")
-                    .unwrap()
-                    .code,
-                tcl_runtime_api::Code::Ok
-            );
-            let commands = vm.invoke_host_original_object_vector(
-                &Value::string("info"),
-                &[Value::string("commands"), Value::string("::selected::*")],
-            );
-            assert_eq!(commands.code, tcl_runtime_api::Code::Ok, "{release}");
-            assert!(
-                commands
-                    .result
-                    .as_list()
-                    .unwrap()
-                    .iter()
-                    .any(|name| name.string_bytes().as_ref() == b"::selected::marker")
-            );
-            let variables = vm.invoke_host_original_object_vector(
-                &Value::string("info"),
-                &[Value::string("vars"), Value::string("::selected::*")],
-            );
-            assert_eq!(variables.code, tcl_runtime_api::Code::Ok, "{release}");
-            assert!(
-                variables
-                    .result
-                    .as_list()
-                    .unwrap()
-                    .iter()
-                    .any(|name| name.string_bytes().as_ref() == b"::selected::item")
-            );
-            assert!(vm.execution_refusal.is_none());
-        }
-    }
-
     fn binding_vm(release: &str) -> Vm {
         Vm::with_native_core(
             Box::new(std::io::sink()),

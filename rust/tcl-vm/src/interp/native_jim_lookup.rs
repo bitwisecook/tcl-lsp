@@ -1457,54 +1457,6 @@ mod tests {
     }
 
     #[test]
-    fn automatic_error_frames_follow_original_cold_rename_and_selected_key_lifetimes() {
-        struct Output(Rc<RefCell<Vec<u8>>>);
-        impl std::io::Write for Output {
-            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-                self.0.borrow_mut().extend_from_slice(bytes);
-                Ok(bytes.len())
-            }
-            fn flush(&mut self) -> std::io::Result<()> {
-                Ok(())
-            }
-        }
-        let cases: &[(&str, &[u8])] = &[
-            (
-                "proc P {n} {if {$n} {rename P Q; Q 0; error fail}; return ok}\nset c [catch {P 1} result options]\nputs [list $c $result [dict get $options -errorinfo]]\n",
-                b"1 fail {Q stdin 1 {error fail} {} stdin 2 {P 1}}\n",
-            ),
-            (
-                "proc P {} {rename eval {}; error fail}\nset c [catch {eval {P}} result options]\nputs [list $c $result [dict get $options -errorinfo]]\n",
-                b"1 fail {P stdin 1 {error fail} {} stdin 2 P}\n",
-            ),
-        ];
-        let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-        for &(source, expected) in cases {
-            let output = Rc::new(RefCell::new(Vec::new()));
-            let mut vm = crate::native_fixture::interpreter_with_output(
-                profile,
-                Box::new(Output(Rc::clone(&output))),
-            );
-            let completion = vm
-                .try_eval_source_at(
-                    source,
-                    tcl_runtime_api::script_source_location::ScriptSourceLocation {
-                        file: "stdin".into(),
-                        line: 1,
-                    },
-                )
-                .expect("original actual Jim source entry");
-            assert!(
-                completion.code.is_ok(),
-                "{source}: {}",
-                completion.result.to_str()
-            );
-            assert_eq!(output.borrow().as_slice(), expected, "{source}");
-            assert!(vm.refused_completion().is_none(), "{source}");
-        }
-    }
-
-    #[test]
     fn original_command_replacement_uses_native_node_liveness_without_epoch_drift() {
         let mut vm = actual_jim();
         vm.register_written_command("opaque", Command::Native(Rc::new(ResultCommand(1))))

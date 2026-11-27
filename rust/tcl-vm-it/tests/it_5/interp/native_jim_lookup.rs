@@ -17,3 +17,4 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod global_error_code_tests;
+mod tests;

@@ -1042,3 +1042,24 @@ reach a compiler drop from 99 to 28.
   - `interp::native_jim_links::tests`: `confined_original_jim_unset_joins_retained_cache_to_the_current_binding` (a hand-pushed frame, private links and the cached Jim cell)
   - `interp::selected_frame::tests`: `original_package_global_selection_restores_hidden_parent_and_preserves_callback_child` (a child selected through private interpreter switching during a callback)
 - Parity: no new failure in the lib and `it_5` suites.
+
+**Batch 15, the small `interp` tail (27 November 2026).** 10 tests in 7
+files: 9 move to `tcl-vm-it` under their old module paths and 1 is deleted.
+Tests that reach a compiler drop from 28 to 18, all in
+`native_variable_names::tests`.
+- Moved: `native_jim_lookup::tests`' cold-rename error frames (jimsh 0.84
+  output), `variable_trace_outcomes_tests`' write-trace error (now one
+  script that catches and reads `::errorInfo`, as tclsh 8.6.18 and 9.0.4
+  print it), `native_namespace_names::tests`' qualified inventories,
+  `native_name_consumers::tests`' Jim `namespace eval` frame,
+  `native_upvar_info_exists_tests` (both tables), and the three
+  `object_materialization::tests` realm tests.
+- Cut from rows: the `upvar`/`exists` instruction rows and the reached
+  values' object types, residency and reference counts (their bytes stay),
+  the authored materialization protocol, the Jim holder's private
+  namespace records, and the private `error_info` field (now `::errorInfo`).
+- Deleted: `interp::native_namespace_origin_tests::unbounded_original_jim_alias_cycle_refuses_without_a_guest_error_claim`.
+  It reaches the VM's alias-cycle guard through a private lookup; through
+  Jim's scripted `namespace origin` the cycle does not end, and jimsh 0.84
+  does not end either.
+- Parity: no new failure in the lib and `it_5` suites.

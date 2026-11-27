@@ -613,40 +613,6 @@ fn ensemble_map_nested_prefix_list_getter_checks_the_original_caller() {
 }
 
 #[test]
-fn original_jim_namespace_eval_uses_its_actual_holder_without_c_tree_registration() {
-    // naming.embedding.original-host-publication-and-fact-transport
-    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
-    let mut vm = crate::native_fixture::interpreter(crate::environment::profile_for_dialect("jim"));
-    let outer =
-        super::super::native_operation_currency::NativeOperationScope::enter(&mut vm).unwrap();
-    // Jim_EvalNamespace evaluates each body in a new call frame, so only a
-    // global outlives the first evaluation.
-    let completion = vm.eval_source("namespace eval originalJimHolder {set ::held HELD}; namespace eval originalJimHolder {set ::held}").unwrap();
-    assert_eq!(completion.code, tcl_runtime_api::Code::Ok);
-    assert_eq!(
-        completion.result.resident_string_bytes().unwrap().as_ref(),
-        b"HELD"
-    );
-    let namespace = vm
-        .namespace_object_lookup(&Value::new_native_string_bytes(
-            b"originalJimHolder".as_slice(),
-        ))
-        .unwrap()
-        .unwrap();
-    assert!(vm.native_namespace_token_has_owner(namespace));
-    let world = vm.name_world.borrow();
-    assert!(world.jim_namespace_objects.contains_key(&namespace));
-    assert!(
-        !world
-            .namespaces
-            .contains(&world.ns_arena[namespace.0 as usize])
-    );
-    drop(world);
-    outer.check(&mut vm).unwrap();
-    assert!(vm.execution_refusal.is_none());
-}
-
-#[test]
 fn original_jim_namespace_holder_withdrawal_refuses_invalid_and_retired_births() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md

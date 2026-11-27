@@ -16,53 +16,66 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Original ordinary upvar/existence execution and reached name-header windows.
-use crate::{Value, Vm};
+//! Ordinary `upvar` and `info exists` in procedure bodies, against the tclsh
+//! captures: completion codes, results and the values each case reaches.
+
+use crate::prelude::*;
 use std::cell::RefCell;
-include!("../../../tcl-registry/tests/data/native_upvar_info_exists/cases.rs");
+
+include!("../../../../tcl-registry/tests/data/native_upvar_info_exists/cases.rs");
 const TABLES: &[(&str, &str)] = &[
     (
         "tcl8.4",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt"),
+        include_str!("../../../../tcl-registry/tests/data/native_upvar_info_exists/8.4.20.txt"),
     ),
     (
         "tcl8.5",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt"),
+        include_str!("../../../../tcl-registry/tests/data/native_upvar_info_exists/8.5.19.txt"),
     ),
     (
         "tcl8.6",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt"),
+        include_str!("../../../../tcl-registry/tests/data/native_upvar_info_exists/8.6.18.txt"),
     ),
     (
         "tcl9.0",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt"),
+        include_str!("../../../../tcl-registry/tests/data/native_upvar_info_exists/9.0.4.txt"),
     ),
     (
         "tcl9.1",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt"),
+        include_str!("../../../../tcl-registry/tests/data/native_upvar_info_exists/9.1.0.txt"),
     ),
 ];
-include!("../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/cases.rs");
+include!("../../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/cases.rs");
 const QUIET_TABLES: &[(&str, &str)] = &[
     (
         "tcl8.4",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/8.4.20.txt"),
+        include_str!(
+            "../../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/8.4.20.txt"
+        ),
     ),
     (
         "tcl8.5",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/8.5.19.txt"),
+        include_str!(
+            "../../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/8.5.19.txt"
+        ),
     ),
     (
         "tcl8.6",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/8.6.18.txt"),
+        include_str!(
+            "../../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/8.6.18.txt"
+        ),
     ),
     (
         "tcl9.0",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/9.0.4.txt"),
+        include_str!(
+            "../../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/9.0.4.txt"
+        ),
     ),
     (
         "tcl9.1",
-        include_str!("../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/9.1.0.txt"),
+        include_str!(
+            "../../../../tcl-registry/tests/data/native_upvar_info_exists/quiet/9.1.0.txt"
+        ),
     ),
 ];
 const SETUP: &str = "catch {unset ::alias};set ::x GLOBAL;set ::a(k) GLOBALARRAY;catch {unset ::g};set ::log {}; proc tap {v} {lappend ::log $v;return $v};proc traceRead {n e op} {set ::g CREATED}; proc traceFail {n e op} {error TRACE}";
@@ -79,53 +92,21 @@ fn unhex(value: &str) -> Vec<u8> {
 thread_local! {
     static MARKS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
 }
-fn mark(_vm: &mut Vm, arguments: &[Value]) -> tcl_runtime_api::Completion<Value> {
-    let value = &arguments[0];
-    let prefix = format!(
-        "{}|{}|{}|",
-        value.native_object_type_name(),
-        usize::from(value.resident_string_bytes().is_some()),
-        value.native_object_reference_count()
-    );
-    let mut bytes = prefix;
-    for byte in value.string_bytes().iter() {
+fn mark(_vm: &mut Vm, arguments: &[Value]) -> Completion<Value> {
+    let mut bytes = String::new();
+    for byte in arguments[0].string_bytes().iter() {
         use std::fmt::Write;
         write!(bytes, "{byte:02x}").unwrap();
     }
     MARKS.with(|marks| marks.borrow_mut().push(bytes));
-    crate::interp::ok(Value::empty())
-}
-fn original_variable_instructions(vm: &mut Vm) -> String {
-    let key = vm
-        .resolve_command_bytes_checked(tcl_core_types::ROOT_NS, b"p", true)
-        .unwrap()
-        .expect("same original published procedure");
-    let Some(crate::command::Command::Proc(procedure)) = vm.commands.get(&key) else {
-        panic!("same original procedure binding");
-    };
-    let Some(cache) = procedure.body_src.native_bytecode_cache() else {
-        return String::new();
-    };
-    let mut rows = String::new();
-    for instruction in &cache.unit.asm.instructions {
-        let name = instruction.op.mnemonic();
-        if name == "upvar" || name.starts_with("exist") {
-            rows.push_str(name);
-            if let Some(tcl_bytecode::Operand::Imm(slot)) = instruction.operands.first() {
-                use std::fmt::Write;
-                write!(rows, ":{slot}").unwrap();
-            }
-            rows.push(',');
-        }
-    }
-    rows
+    Completion::new(Code::Ok, Value::empty(), Value::empty())
 }
 fn compare_native_tables(tables: &[(&str, &str)], cases: &[&str]) -> (usize, usize) {
     let mut results = 0;
     let mut headers = 0;
     for &(engine, table) in tables {
         let profile = tcl_dialect::DialectProfile::find(engine).unwrap();
-        let mut vm = crate::native_fixture::interpreter(profile);
+        let mut vm = crate::fixture::interpreter(profile);
         vm.register("mark", mark);
         for row in table.lines().filter(|row| row.starts_with("R|")) {
             let fields: Vec<_> = row.split('|').collect();
@@ -140,17 +121,11 @@ fn compare_native_tables(tables: &[(&str, &str)], cases: &[&str]) -> (usize, usi
             ))
             .unwrap();
             MARKS.with(|marks| marks.borrow_mut().clear());
-            let head = Value::new_native_string_bytes(b"p".as_slice());
             let arguments = [
                 Value::new_native_string_bytes(b"x".as_slice()),
                 Value::new_native_string_bytes(b"k".as_slice()),
             ];
-            let completion = vm.invoke_host_original_object_vector(&head, &arguments);
-            assert!(
-                vm.execution_refusal.is_none(),
-                "{engine}/{case}: {:?}",
-                vm.execution_refusal
-            );
+            let completion = crate::fixture::call(&mut vm, "p", &arguments);
             assert_eq!(
                 completion.code.as_int().to_string(),
                 fields[2],
@@ -158,34 +133,14 @@ fn compare_native_tables(tables: &[(&str, &str)], cases: &[&str]) -> (usize, usi
             );
             let value = &completion.result;
             assert_eq!(
-                value.native_object_type_name(),
-                fields[3],
-                "{engine}/{case} primary"
-            );
-            assert_eq!(
-                usize::from(value.resident_string_bytes().is_some()).to_string(),
-                fields[4],
-                "{engine}/{case} resident"
-            );
-            assert_eq!(
-                value.native_object_reference_count().to_string(),
-                fields[5],
-                "{engine}/{case} references"
-            );
-            assert_eq!(
                 value.string_bytes().as_ref(),
                 unhex(fields[6]),
                 "{engine}/{case} result"
             );
-            assert_eq!(
-                original_variable_instructions(&mut vm),
-                fields[7],
-                "{engine}/{case} original variable instructions"
-            );
             let expected = table
                 .lines()
                 .filter(|row| row.starts_with(&format!("H|{case}|")))
-                .map(|row| row.split('|').skip(3).collect::<Vec<_>>().join("|"))
+                .map(|row| row.rsplit('|').next().unwrap().to_owned())
                 .collect::<Vec<_>>();
             MARKS.with(|marks| {
                 assert_eq!(
