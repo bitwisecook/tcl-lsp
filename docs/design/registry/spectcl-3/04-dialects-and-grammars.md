@@ -296,10 +296,19 @@ $ ./target/debug/tcl dis --dialect tcl9.0 --source 'expr {017 + 0o17}'
     (0) push1 0	# "32"
     (2) done
 $ ./target/debug/tcl dis --dialect tcl8.4 --source 'puts a; expr {0o17}; puts b'
-ByteCode ::top, 0 instructions, 0 bytes, 0 literals, 0 variables
-  Instructions:
-$ echo $?
-0
+ByteCode ::top, 12 instructions, 21 bytes, 5 literals, 0 variables
+    (0) push1 0	# "puts"
+    (2) push1 1	# "a"
+    (4) invokeStk1 2	# puts
+    (6) pop
+    (7) push1 2	# "expr"
+    (9) push1 3	# "0o17"
+    (11) invokeStk1 2	# expr
+    (13) pop
+    (14) push1 0	# "puts"
+    (16) push1 4	# "b"
+    (18) invokeStk1 2	# puts
+    (20) done
 ```
 
 **Result:**
@@ -315,14 +324,16 @@ $ tclsh9.0 num.tcl      (tclsh9.1, tmp/jimtcl-oracle/jimsh and ./target/debug/tc
 
 Our compiler folds the expression per release, so its constant comes from the
 number grammar of the unit's profile, as C Tcl's does, for 8.5 to 9.1. Under
-8.4 it does not: where the expression does not parse, `tcl dis` silently
-emits an empty unit, dropping the commands either side, and exits 0. tclsh
-8.4.20 and `tclvm --tcl-version 8.4` print `a` and then fail with `syntax
-error in expression "0o17"`. **Required:** a braced expression that does not
-parse under the unit's profile compiles to a runtime error at that command,
-as tclsh 9.0 compiles `expr {0o1x}` (a `syntax` instruction in command 2,
-with commands 1 and 3 compiled around it); the unit is never empty. This is
-in item 423's "Done when".
+8.4, `tcl dis` used to emit an empty unit where the expression does not
+parse, dropping the commands either side, and exit 0, while tclsh 8.4.20 and
+`tclvm --tcl-version 8.4` print `a` and then fail with `syntax error in
+expression "0o17"`. **Required, and now met:** a braced expression that does
+not parse under the unit's profile compiles to a runtime error at that
+command, with commands 1 and 3 compiled around it; the unit is never empty.
+8.4 hands a sourced file to `Tcl_EvalEx`, so its unit is a direct script whose
+second command fails when it runs, rather than the `syntax` instruction 8.5
+and later compile ([370](../model/370-dialect-grammars.md), worked example 2).
+This was in item 423's "Done when".
 
 ## The negative controls
 

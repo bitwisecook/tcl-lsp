@@ -931,12 +931,30 @@ pub fn lower_to_ir_for_bytecode_with_dialect(
     config: tcl_lexer::LexerConfig,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Module {
-    lower_with(
+    let lowerer = || {
         Lowerer::with_config(registry, config)
             .with_dialect(dialect)
-            .for_bytecode_backend(),
-        source,
-    )
+            .for_bytecode_backend()
+    };
+    let module = lower_with(lowerer(), source);
+    if module.top_level.native_compilation_failure.is_none() || !sources_files_directly(dialect) {
+        return module;
+    }
+    // 8.4 never compiles a sourced file whole: `Tcl_EvalEx` compiles each
+    // command as it runs, so a command its compiler refuses fails where it
+    // stands, after the commands before it, as a direct script's does.
+    let mut module = lower_with(lowerer().evaluated_directly(), source);
+    module.top_level_evaluation = tcl_runtime_api::CommandEvaluation::Direct;
+    module
+}
+
+/// Whether `dialect`'s `source` hands a file to `Tcl_EvalEx`.
+fn sources_files_directly(dialect: Option<&'static tcl_dialect::DialectProfile>) -> bool {
+    dialect
+        .and_then(tcl_dialect::DialectProfile::runtime_version)
+        .is_some_and(|version| {
+            tcl_registry::release_compilation::evaluates_script_directly(version, "source", 1)
+        })
 }
 
 /// Like [`lower_to_ir_for_bytecode`] but with every inline/structured

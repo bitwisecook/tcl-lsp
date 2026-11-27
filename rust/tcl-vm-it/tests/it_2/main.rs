@@ -21,6 +21,7 @@
 //! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
 //! module; a new top-level `tests/*.rs` is a binary of its own.
 
+mod c84_document_compile_refusal_e2e;
 mod cmd_collections_e2e;
 mod cmd_coro_e2e;
 mod cmd_info_prefix_e2e;

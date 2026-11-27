@@ -629,18 +629,37 @@ $ tcl dis --dialect tcl8.6 --source 'expr {017 + 0o17}'
 $ tcl dis --dialect tcl9.0 --source 'expr {017 + 0o17}'
     (0) push1 0	# "32"
 $ tcl dis --dialect tcl8.4 --source 'puts a; expr {0o17}; puts b'
-ByteCode ::top, 0 instructions, 0 bytes, 0 literals, 0 variables
-  Instructions:
-$ echo $?
-0
+ByteCode ::top, 12 instructions, 21 bytes, 5 literals, 0 variables
+    (0) push1 0	# "puts"
+    (2) push1 1	# "a"
+    (4) invokeStk1 2	# puts
+    (6) pop
+    (7) push1 2	# "expr"
+    (9) push1 3	# "0o17"
+    (11) invokeStk1 2	# expr
+    (13) pop
+    (14) push1 0	# "puts"
+    (16) push1 4	# "b"
+    (18) invokeStk1 2	# puts
+    (20) done
 ```
 
-The 8.4 row is a bug: the whole unit is silently empty. tclsh 8.4.20 and
+The 8.4 row was a bug, now fixed: the whole unit was silently empty. 8.4
+never compiles a sourced file whole: `Tcl_FSEvalFile` hands it to
+`Tcl_EvalEx`, which compiles each command as it runs, so tclsh 8.4.20 and
 `tclvm --tcl-version 8.4` print `a`, then fail with `syntax error in
-expression "0o17": extra tokens at end of expression`. The required
-behaviour is a runtime error compiled at that command, as tclsh 9.0 compiles
-`expr {0o1x}`: commands 1 and 3 compiled as usual and a `syntax` instruction
-in command 2 (item 376's "Done when").
+expression "0o17": extra tokens at end of expression` while executing
+`expr {0o17}`. When 8.4 would refuse an authored document's top level
+whole, `lower_to_ir_for_bytecode_with_dialect` now lowers it as such a
+direct script (`CommandEvaluation::Direct`, the model the runtime already
+uses for 8.4's `source`, `eval` and `uplevel`): commands 1 and 3 compile as
+usual and command 2 is the invocation that fails when it runs. A script a
+command runs (`if 1 {expr {0o17}}`, a `proc` body, a `catch`) is still
+refused whole when it is compiled, `while compiling`, as in C. Where 8.5 and
+later compile a parse error to a `syntax` instruction, an 8.4 unit has no
+such instruction, since 8.4 itself never compiled one. The test is
+`rust/tcl-vm-it/tests/it_2/c84_document_compile_refusal_e2e.rs`, checked
+against tclsh 8.4, 8.6 and 9.0.
 
 **Result:**
 
@@ -924,7 +943,7 @@ unit's profile, an engine that cannot run it refuses instead.
   finds nothing; `format %b 5` fails under `tclvm --tcl-version 8.4`;
   `tclvm --tcl-version 8.4` and `9.0` give tclsh's `scan.int_width` row; and
   `tcl dis --dialect tcl8.4 --source 'puts a; expr {0o17}; puts b'` compiles
-  three commands, the second a runtime `syntax` error (item 376).
+  three commands, the second failing at run time (item 376; done).
 - **Measurements:** lexing time on the corpus within ±2% (the profile is a
   `&'static` read); the build cone of `tcl-dialect` unchanged; the number of
   `LexerConfig::default()` lines outside tests, which may only shrink.
