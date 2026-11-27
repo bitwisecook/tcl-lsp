@@ -277,6 +277,3 @@ pub(super) fn run(
 ) -> Completion<Value> {
     run_result(vm, target, |vm, scope| Ok(work(vm, scope))).unwrap_or_else(|completion| completion)
 }
-
-#[cfg(test)]
-mod tests;

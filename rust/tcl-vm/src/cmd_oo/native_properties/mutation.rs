@@ -17,13 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Original property setters, owning working Lists and checked metadata effects.
+use super::super::original_name_operands::OriginalOoNameScope;
 use super::{
     BTreeMap, BTreeSet, CmdError, NativePropertyGraphDependents, OoId, OriginalPropertyOperation,
     Value, ValueError, Vm, original_stages,
 };
-#[cfg(test)]
-mod tests;
-use super::super::original_name_operands::OriginalOoNameScope;
 use crate::interp::{
     native_numeric_ops::OriginalNumericOps, native_operation_currency::NativeOperationScope,
 };

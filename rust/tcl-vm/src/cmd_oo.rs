@@ -77,8 +77,6 @@ mod introspection;
 mod method_invocation;
 mod method_resolution;
 
-#[cfg(test)]
-use activation_commands::frame_object_name;
 use activation_commands::{cmd_my, cmd_self};
 pub(crate) use activation_commands::{
     cmd_next, cmd_next_original, cmd_nextto, cmd_nextto_original, current_object_name, in_method,
@@ -94,24 +92,16 @@ use definition::{
     active_target, append_define_frame, cmd_oo_define, cmd_oo_objdefine, cmd_private, def_body_cmd,
     run_define,
 };
-#[cfg(test)]
-use definition::{build_method, def_constructor, def_destructor, def_method};
-#[cfg(test)]
-use destruction::oo_destroy;
 pub(crate) use destruction::{
     oo_command_deleted, oo_command_exposed, oo_command_hidden, oo_command_renamed,
     oo_command_replaced, original_oo_rename,
 };
-#[cfg(test)]
-use destruction::{teardown, teardown_checked, teardown_original};
 pub(crate) use introspection::{
     info_class, info_object, is_object, object_class_name, object_creation_id, object_key,
     object_namespace_name,
 };
 #[cfg(test)]
 use method_invocation::builtin_method;
-#[cfg(test)]
-use method_invocation::{builtin_variable, run_step};
 use method_invocation::{oo_invoke_value, oo_invoke_value_with_head};
 
 #[derive(Clone)]
@@ -831,9 +821,3 @@ pub(crate) fn native_bootstrap_inventory(
 
 #[cfg(test)]
 mod native_info_option_tests;
-
-#[cfg(test)]
-mod original_method_retirement_tests;
-
-#[cfg(test)]
-mod lifecycle_tests;

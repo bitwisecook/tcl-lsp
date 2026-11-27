@@ -132,14 +132,6 @@ fn oo_destroy_entered(
     result
 }
 
-#[cfg(test)]
-/// Retire the original command/name/property and whole record payloads.
-/// Each owning payload leaves its storage access before release.
-pub(super) fn teardown_checked(vm: &mut Vm, obj_key: OoId) -> Result<(), tcl_cmd_core::CmdError> {
-    let owner = crate::interp::oo_cleanup::OriginalOoCleanup::enter(vm);
-    teardown_original(vm, obj_key, &owner)
-}
-
 pub(super) struct OriginalConstructedRecord {
     pub(super) creation: u64,
     pub(super) name: Weak<RefCell<Option<Value>>>,
@@ -258,11 +250,6 @@ pub(super) fn teardown_original(
     }
     // Reporting bytes remain attached to the never-reused retired object token.
     first.map_or(Ok(()), Err)
-}
-
-#[cfg(test)]
-pub(super) fn teardown(vm: &mut Vm, obj_key: OoId) {
-    let _ = teardown_checked(vm, obj_key);
 }
 
 pub(crate) struct OriginalOoRename {

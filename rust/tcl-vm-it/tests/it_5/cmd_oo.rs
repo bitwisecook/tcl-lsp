@@ -17,13 +17,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod export_visibility_tests;
+mod lifecycle_tests;
+mod method_preparation;
 mod native_byte_name_tests;
 mod native_context;
 mod native_explicit_variable_tests;
+mod native_method_cache;
 mod native_method_info_tests;
 mod native_method_report_tests;
 mod native_original_holder_tests;
 mod native_private_tests;
+mod native_properties;
 mod native_property_counted_tests;
 mod native_variables;
 mod original_call_argv_tests;

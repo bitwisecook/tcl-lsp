@@ -361,6 +361,3 @@ pub(super) fn with_target(
     }
     active.finish(vm, result)
 }
-
-#[cfg(test)]
-mod tests;

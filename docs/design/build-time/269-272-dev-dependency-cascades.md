@@ -866,3 +866,47 @@ is deleted. Tests that reach a compiler drop from 308 to 300.
   `cmd_oo::native_method_report_tests::original_foundation_value_report_refuses_missing_and_unsupported_owners`
   (it removes the interpreter's private report table and reads the refusal
   that follows).
+
+**Batch 10, the rest of `cmd_oo` (27 November 2026).** 67 tests in 13 files:
+18 move to `tcl-vm-it` under their old module paths and 49 are deleted.
+`cmd_oo` has no test left that reaches a compiler; the count drops from 300
+to 233, all in `interp`.
+- Moved, as scripts compared with tclsh 8.6.18 and 9.0.4: class and object
+  destruction (`info commands`, `namespace exists`), destructors that return,
+  raise a guest error or refuse through a host command, a child
+  interpreter's objects surviving the parent's cleanup, a class destroy whose
+  first destructor refuses, method recompilation after `rename expr` and
+  redefinition, dispatch after rename, redefinition, object methods, mixins,
+  deletion and `next`, a method that replaces itself while running, failed
+  class definitions and constructors, `renamemethod` to an integer name, a
+  failed `oo::define` keeping the method it defined first, and the retained
+  `configure` captures.
+- Cut from rows: object, class and namespace records and tokens, retained
+  name leases, method-name chains, cache stamps, compiled-body identity,
+  property epochs and the destructor's dialect-swap mode (currency builds
+  only).
+- Deleted, with no script-visible behaviour: they drive private method
+  chains, preparation and definition-exit scopes, operation scopes, records,
+  epochs, string-stage formatters, receipts and frame captures, or inject a
+  refusal or a context change between private steps:
+  - `cmd_oo::lifecycle_tests`: `original_oo_cleanup_after_entry_refusal_skips_destructor_and_completes_owned_retirement`, `original_oo_rename_continuation_keeps_record_and_refuses_withdrawn_or_restored_context`
+  - `cmd_oo::method_preparation::tests`: `original_method_preparation_checks_genuine_caller_frame_before_new_activation`, `original_method_preparation_formats_an_integer_body_without_the_host`, `original_method_preparation_requires_original_receiver_and_declaring_facet_after_reached_work`, `original_method_preparation_retains_reached_host_before_later_facet_or_context_refusal`
+  - `cmd_oo::native_context::definition_exit::tests`: `original_definition_error_frame_retains_retired_result_storage_refusal_through_cleanup`, `original_definition_exit_preserves_genuine_replacement_row_and_usage_birth`, `original_definition_exit_restores_real_row_usage_and_frame_after_public_callback`, `original_definition_namespace_lookup_keeps_full_intrinsic_refusal_through_cleanup`, `original_definition_rewrite_keeps_full_first_cause_through_physical_restoration`, `original_definition_worker_and_self_rewrite_restore_the_same_selected_row`
+  - `cmd_oo::native_context::self_frame_tests`: `original_self_report_reacquires_the_same_entered_frame_without_method_payload_holds`, `original_self_report_refuses_chain_or_index_withdrawal_and_keeps_the_first_host_cause`
+  - `cmd_oo::native_method_cache::owner_tests`: `original_constructor_and_destructor_replace_actual_slot_roles_before_epoch_continuation`, `original_method_creation_epoch_refuses_after_actual_same_record_payload_retirement`, `original_oo_cleanup_epoch_exhaustion_retains_first_cause_and_retires_whole_payload`, `original_vm_method_callback_context_restore_keeps_first_host_and_reached_cache`, `original_vm_method_key_refuses_inherited_context_before_string_and_cache`
+  - `cmd_oo::native_method_cache::rename_tests`: `original_vm_rename_record_receipt_keeps_context_aba_first_cause`, `original_vm_rename_source_receipt_refuses_deleted_and_reborn_slot`
+  - `cmd_oo::native_method_cache::string_stage_tests`: `original_method_cache_string_formats_an_integer_key_without_the_host`, `original_method_cache_string_never_reaches_a_failing_or_retiring_formatter`
+  - `cmd_oo::native_properties::tests`: `default_property_methods_retain_original_clientdata_and_leave_its_primary`, `opaque_property_lookup_uses_original_accessor_members`, `property_headers_and_temporary_tables_retain_original_members`
+  - `cmd_oo::native_properties::mutation::tests`: `original_property_epoch_refusal_stops_later_publishers_with_full_first_cause`, `original_property_facet_and_restored_context_refuse_before_setter_effects`, `original_property_registration_compares_before_acquiring_working_list_member`, `original_property_setter_acquires_all_incoming_roles_and_keeps_first_duplicate_header`, `original_property_setter_retires_cache_and_members_and_formats_integers_without_the_host`, `original_property_slot_composition_keeps_original_headers_and_empty_append_is_noop`
+  - `cmd_oo::native_properties::stage_tests`: `original_cached_accessor_reaches_success_without_a_property_string_getter`, `original_dictionary_constructor_spells_integer_keys_without_the_host`, `original_property_derivation_cannot_adopt_a_changed_roster_or_class_facet`, `original_property_report_sort_uses_canonical_string_and_actual_member_roles`, `original_property_temporary_table_does_not_reread_its_frozen_member_strings`, `private_property_inventory_replacement_is_independent_of_method_epochs`, `property_output_key_refusal_stops_before_the_next_original_getter`
+  - `cmd_oo::original_method_retirement_tests`: `original_method_table_replacement_preserves_record_and_retires_original_payload`, `original_missing_method_role_never_revives_a_present_table_record`, `original_unnamed_slot_replacement_keeps_only_genuine_entered_original_owner`
+  - `cmd_oo::original_name_operands::tests`: `original_oo_definition_name_spells_an_integer_without_the_host_and_restores_activation`, `original_oo_method_name_spells_an_integer_without_the_host_before_body`, `original_oo_name_declaring_facet_comes_from_the_genuine_entered_method_chain`, `original_oo_name_facet_replacement_keeps_object_and_namespace_guards_independent`, `original_oo_name_present_method_requires_its_actual_declaring_step`, `original_oo_name_target_keeps_rename_and_ordinary_method_mutation_without_reference_roles`, `original_oo_name_withdrawal_refuses_recreated_written_object_before_later_getter`
+- Test-only helpers left without a caller are removed: `cmd_oo`'s
+  `#[cfg(test)]` imports, `destruction::teardown` and `teardown_checked`, and
+  `oo_cleanup::withdraw_cleanup_fixture_name_world`.
+
+**Known VM gap (found in batch 10).** `oo::define C renamemethod absent 42`
+fails with `method does not exist`; tclsh 8.6.18 and 9.0.4 say
+`method absent does not exist`.
+`cmd_oo::native_method_cache::rename_tests::original_vm_rename_missing_source_does_not_reach_destination_string`
+checks the code and the message's shape.

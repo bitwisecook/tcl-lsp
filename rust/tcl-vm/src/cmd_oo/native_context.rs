@@ -517,6 +517,3 @@ pub(crate) fn helper_context_error(vm: &mut Vm, head: &[u8]) -> Completion<Value
         options,
     )
 }
-
-#[cfg(test)]
-mod self_frame_tests;

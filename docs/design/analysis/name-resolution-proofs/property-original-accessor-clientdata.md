@@ -41,8 +41,6 @@ No appliance observation for this question.
 ## Consumer bindings
 
 - [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs), `default_property_methods_retain_original_clientdata_and_leave_its_primary` (linked): Compare accessor client-data identity, original declaration reference count/primary and caller cache separately.
-- [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs), `default_property_methods_retain_original_clientdata_and_leave_its_primary` (linked): Compare accessor client-data identity, original declaration reference count/primary and caller cache separately.
-- [rust/tcl-vm/src/cmd_oo/native_properties.rs](../../../../rust/tcl-vm/src/cmd_oo/native_properties.rs), `cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary` (linked): Default property methods retain original clientdata and leave its primary. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose.
 - [runtime/rust/src/cmd_oo/native_properties.rs](../../../../runtime/rust/src/cmd_oo/native_properties.rs), `cmd_oo::native_properties::tests::default_property_methods_retain_original_clientdata_and_leave_its_primary` (linked): Default property methods retain original clientdata and leave its primary. This is a current authored software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native callback/free chronology, physical reference/frame identity or execution purpose.
 
 ## Evidence
