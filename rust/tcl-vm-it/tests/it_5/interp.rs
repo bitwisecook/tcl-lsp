@@ -65,5 +65,6 @@ mod native_substitution_entry_tests;
 mod native_try_dispatch_tests;
 mod native_upvar_info_exists_tests;
 mod native_variable_inventory_policy_tests;
+mod native_variable_names;
 mod object_materialization;
 mod variable_trace_outcomes_tests;

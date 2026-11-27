@@ -120,7 +120,6 @@ No observation of this exact question is retained for this provider.
 
 - [rust/tcl-syntax/src/native_variable_name.rs](../../../../rust/tcl-syntax/src/native_variable_name.rs), `NativeVariableNameProtocol::cache_precedes_string_getter`: Selects cached-name versus byte-getter order without fabricating an unavailable original updater.
 - [runtime/rust/src/interp/native_variable_names.rs](../../../../runtime/rust/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths` (linked): Compares 25 ordinary/fatal native paths; Rust host refusal is an independent implementation response to the measured fatal native updater, not a native guest completion.
-- [rust/tcl-vm/src/interp/native_variable_names.rs](../../../../rust/tcl-vm/src/interp/native_variable_names.rs), `interp::native_variable_names::tests::original_local_cache_getter_order_matches_all_25_native_paths` (linked): Compares 25 ordinary/fatal native paths; Rust host refusal is an independent implementation response to the measured fatal native updater, not a native guest completion.
 
 ## Evidence
 
