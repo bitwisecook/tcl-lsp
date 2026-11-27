@@ -22,7 +22,7 @@ use crate::codegen::wasm::backend::imports::add_codegen_import;
 use crate::codegen::wasm::backend::imports::add_general_imports;
 use crate::codegen::wasm::leaf_invoke::WasmWordPlan;
 use crate::codegen::wasm::native_emit;
-use tcl_compiler::interprocedural::test_body_identity::fixture_id_if_present;
+use crate::test_body_identity::fixture_id_if_present;
 
 use super::*;
 use tcl_compiler::command_binding::BindingKind;

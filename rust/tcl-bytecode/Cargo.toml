@@ -16,22 +16,9 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Bytecode artifact types for the Tcl 9 bytecode ("TCLVM") backend.
-#
-# The lean leaf crate that owns the shared bytecode *artifact* — the opcode set
-# (`Op`), `Instruction`/`FunctionAsm`/`ModuleAsm`, the interning tables, plus
-# instruction layout and disassembly. Extracted from `tcl-compiler::codegen` so
-# the codegen emitter and the bytecode VM can both depend on the artifact types
-# without the VM pulling in the whole compiler. See
-# `docs/design/compiler/codegen-module-map.md`.
-#
-# Dependency DAG (no cycles):
-#   tcl-lexer <- tcl-syntax <- tcl-bytecode <- { tcl-compiler, tcl-vm }
-#
-# Depends on `tcl-syntax` (for `BinOp`/`UnaryOp`) and `tcl-lexer` (for the
-# `Span` carried as explorer source metadata on each `Instruction`) — both
-# already upstream in the DAG above, so it stays a `forbid(unsafe)`,
-# wasm32-clean leaf.
+# Bytecode instructions, assembly, layout and disassembly. Shared tables live
+# below this crate in tcl-bytecode-tables, which analysis and runtime/rust use
+# without depending on opcode selection or encoding.
 [package]
 name = "tcl-bytecode"
 publish.workspace = true
@@ -44,6 +31,7 @@ authors.workspace = true
 description = "Tcl 9 bytecode artifact types (opcodes, instructions, FunctionAsm/ModuleAsm, layout, disassembly)"
 
 [dependencies]
+tcl-bytecode-tables = { path = "../tcl-bytecode-tables" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }

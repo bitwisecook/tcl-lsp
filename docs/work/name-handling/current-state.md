@@ -1,5 +1,47 @@
 # Current LSP naming migration state
 
+## Item 498: bytecode tables
+
+`tcl-bytecode-tables` now owns the literal and local tables, native literal
+recipes and source error regions. `tcl-bytecode` re-exports them, preserving
+assembly consumers' paths. The compiler and standalone runtime take the tables
+directly; opcode edits have no production dependency path to either. The
+compiler's assembly fixtures are dev-only; codegen owns its assembly test
+lookup. Host lockfiles, ownership paths and CI closures follow the extraction.
+The runtime classifier now excludes opcode-only changes.
+
+Passed: all 53 existing bytecode/table tests (42 instruction/layout, 11 public
+table contracts), codegen's end-to-end compilation smoke, and compiler/codegen
+checks for every target, plus standalone runtime checks for every target
+(with libtommath unavailable, as reported by its build script). Production
+graph checks exclude `tcl-compiler` and
+`runtime/rust` from the opcode dependency; the Python/report and query hosts
+also lose that package. Every standalone host lockfile resolves with
+`--locked`. Runtime, Python, root Rust, LSP E2E and SpecTcl CI
+path contracts pass. The shard verifier fails on the same five pre-existing
+unassigned targets with and without this extraction: `bpf-tcl::installs_surfaces`,
+`tcl-cli::installs_surfaces`, `tcl-debugger::installs_surfaces`,
+`tcl-registry::install_contract` and `tcl-vm-cli::installs_surfaces`.
+
+Validation logs: `/tmp/item-498-bytecode-baseline-work.log`,
+`/tmp/item-498-bytecode-tests-work.log`, `/tmp/item-498-codegen-smoke-work.log`,
+`/tmp/item-498-compiler-check-work.log`, `/tmp/item-498-runtime-check-work.log`,
+`/tmp/item-498-ci-paths-work.log`,
+`/tmp/item-498-spectcl-paths-work.log`,
+`/tmp/item-498-host-lockfiles-work.log`. Production graphs are
+`/tmp/item-498-bytecode-tree-work.log` and `/tmp/item-498-runtime-tree-work.log`.
+
+Workspace Clippy passed with warnings denied for every target. The complete
+`make prep-pr` attempt timed out after 600 seconds, including time waiting for
+Cargo's build lock and the cold generator build; no generated sources changed.
+Its log is `/tmp/prep-pr-item-498-work.log`. The complete `make rust-check`
+attempt timed out after 900 seconds during the offline x509 test build, after
+both workspace and x509-only Clippy passed; standalone runtime lint and drift
+gates were not reached. Its log is `/tmp/rust-check-item-498-work.log`.
+The `work` development-push exception applies. Before a PR, rerun both full
+gates with sufficient build time and resolve the existing shard omissions.
+No implementation obligations remain for item 498.
+
 ## Development push validation
 
 The identity/answer change is rebased onto the latest remote `work`, preserving

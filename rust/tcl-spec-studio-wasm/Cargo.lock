@@ -1146,6 +1146,17 @@ dependencies = [
 name = "tcl-bytecode"
 version = "0.1.0"
 dependencies = [
+ "tcl-bytecode-tables",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-runtime-api",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-bytecode-tables"
+version = "0.1.0"
+dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-runtime-api",
@@ -1196,7 +1207,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "strsim",
- "tcl-bytecode",
+ "tcl-bytecode-tables",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",

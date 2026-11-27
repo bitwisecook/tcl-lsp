@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::LocalVarTable;
+use tcl_bytecode_tables::LocalVarTable;
 use tcl_runtime_api::NameBytes;
 
 #[test]

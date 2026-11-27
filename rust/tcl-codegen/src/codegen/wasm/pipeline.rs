@@ -812,7 +812,7 @@ fn selection_facts(function: &ExecutableFunction) -> SelectionFacts<'_> {
 
 #[cfg(test)]
 mod tests {
-    use tcl_compiler::interprocedural::test_body_identity::fixture_id;
+    use crate::test_body_identity::fixture_id;
 
     use super::super::WasmOp;
     use super::*;

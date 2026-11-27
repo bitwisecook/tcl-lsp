@@ -412,7 +412,7 @@ pub struct Function {
     pub catch_ends: Vec<CatchEnd>,
     /// Registry-described error contexts for inlined command bodies flattened
     /// into this function's statement stream. Codegen turns each into a
-    /// [`tcl_bytecode::ErrorRegion`] without re-parsing command text. Empty
+    /// [`tcl_bytecode_tables::ErrorRegion`] without re-parsing command text. Empty
     /// when no inlined body contributes an error frame.
     pub inline_body_error_sites: Vec<InlineBodyErrorSite>,
     /// Registry-resolved structured command heads consumed while building this

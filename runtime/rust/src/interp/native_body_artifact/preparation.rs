@@ -25,7 +25,7 @@ use super::{
 };
 use std::collections::HashMap;
 use std::rc::Weak;
-use tcl_bytecode::{LiteralTable, LocalVarTable};
+use tcl_bytecode_tables::{LiteralTable, LocalVarTable};
 use tcl_lexer::{SourceImage, Span};
 use tcl_registry::native_compilation::{
     NativeCompilationContext as Context, NativeCompilationFrame, NativeCompilationMode,

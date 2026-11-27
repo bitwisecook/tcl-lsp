@@ -206,7 +206,7 @@ impl PartialEq<String> for NativeStringLiteral {
 #[derive(Debug, Clone, Default)]
 pub struct LiteralTable {
     entries: Vec<NativeStringLiteral>,
-    pub(super) index: HashMap<Vec<u8>, usize>,
+    index: HashMap<Vec<u8>, usize>,
     actions: Vec<NativeLiteralAction>,
     discarded_native_passes: Vec<LiteralTable>,
     native_compiler_replay_environment:

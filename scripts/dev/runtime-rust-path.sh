@@ -50,7 +50,7 @@ case "$PATH_TO_CLASSIFY" in
     # Its resolved path-dependency closure. Keep in sync with
     # `cargo metadata --manifest-path runtime/rust/Cargo.toml`; the companion
     # test script is the gate that keeps it honest.
-    rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-core-types/* | \
+    rust/tcl-bytecode-tables/* | rust/tcl-cmd-core/* | rust/tcl-core-types/* | \
     rust/tcl-dialect/* | rust/tcl-engine-api/* | rust/tcl-expr/* | rust/tcl-host-c-abi/* | \
     rust/tcl-host-native/* | rust/tcl-lexer/* | rust/tcl-numeric/* | \
     rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | \

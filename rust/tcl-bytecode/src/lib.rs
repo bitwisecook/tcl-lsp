@@ -18,16 +18,14 @@
 
 //! Bytecode artifact types for the Tcl 9 bytecode ("TCLVM") backend.
 //!
-//! The lean, `forbid(unsafe)` leaf crate that owns the shared bytecode
-//! *artifact*: the opcode set ([`Op`], matching Tcl 9.0.2), the instruction
-//! and assembly types ([`Instruction`], [`FunctionAsm`], [`ModuleAsm`]), the
-//! interning tables ([`LiteralTable`], [`LocalVarTable`]), plus instruction
-//! [`layout`] and disassembly [`format`].
+//! The opcode set ([`Op`]), instruction and assembly types ([`Instruction`],
+//! [`FunctionAsm`], [`ModuleAsm`]), instruction [`layout`] and disassembly
+//! [`format`] belong here. The compiler's emitter (`tcl_codegen::codegen`)
+//! produces these types and the bytecode VM consumes them.
 //!
-//! The compiler's emitter (`tcl_codegen::codegen`) produces these types and
-//! re-exports them; the bytecode VM consumes them. Keeping them in a leaf crate
-//! (whose only dependency is `tcl-syntax`, for [`BinOp`]/[`UnaryOp`]) lets the
-//! VM depend on the artifact without pulling in the whole compiler.
+//! Shared literal and local tables and source error regions live in
+//! `tcl-bytecode-tables` and are re-exported here. Analysis and the WASM
+//! runtime depend on those tables directly, without this crate's opcodes.
 
 pub mod format;
 pub mod layout;
@@ -35,8 +33,6 @@ pub mod layout;
 use std::collections::HashMap;
 
 mod instruction;
-mod literals;
-mod local_vars;
 mod op;
 
 pub use instruction::{
@@ -45,12 +41,11 @@ pub use instruction::{
     NativeOperationSelectionSite, NativeStringIndexPurpose, Operand, ReleaseBodyEntry,
     ReleaseCompiled, ScriptCommand, SourceCommandBoundary,
 };
-pub use literals::{
-    LiteralTable, NativeExpressionNumberLiteral, NativeLiteralAction, NativeLiteralAllocation,
-    NativeStringLiteral,
-};
-pub use local_vars::LocalVarTable;
 pub use op::Op;
+pub use tcl_bytecode_tables::{
+    ErrorRegion, ErrorRegionFrame, LiteralTable, LocalVarTable, NativeExpressionNumberLiteral,
+    NativeLiteralAction, NativeLiteralAllocation, NativeStringLiteral,
+};
 
 /// Index sentinel for "end"-based Tcl index notation.
 ///
@@ -469,52 +464,6 @@ pub struct SpliceRange {
     pub resumes_with_value: bool,
 }
 
-/// An inlined command body's instruction range and the `errorInfo` frame the
-/// enclosing command (`eval`, a loop, `if`, `switch`) would add when its body
-/// errors — the compiled analogue of C's per-command `CmdFrame`. Populated by
-/// codegen when it folds a literal body inline (so the LSP keeps its inlined
-/// view), consumed by the executor as an error unwinds (see
-/// `FunctionAsm::error_regions`).
-#[derive(Debug, Clone)]
-pub struct ErrorRegion {
-    /// Start byte offset of the enclosing command's source span (inclusive). An
-    /// instruction is covered when its `source_span` lies within `[start, end)`,
-    /// so coverage is matched by source containment — robust to instruction
-    /// reordering and exact across interleaved (non-body) instructions.
-    pub start: u32,
-    /// End byte offset of the enclosing command's source span (exclusive).
-    pub end: u32,
-    /// The frame the body adds before the command is logged.
-    pub frame: ErrorRegionFrame,
-    /// The enclosing command's surface text, for its `invoked from within "…"`
-    /// frame (truncated to 150 bytes by the logger, as in C).
-    pub cmd_text: tcl_lexer::SourceImage,
-    /// One less than the body's first source line: a covered instruction's
-    /// body-relative line is `instruction_line − line_base` (so the body frame
-    /// reports a line relative to the body, not the whole module).
-    pub line_base: u32,
-    /// The enclosing command's own source line — the line its `invoked from
-    /// within` frame contributes to any further-out (proc) frame.
-    pub cmd_line: u32,
-    /// Whether the release compiles the command in a procedure body, so the
-    /// region adds no frame where its script runs as part of one.
-    pub compiled_in_procedure: bool,
-}
-
-/// The `errorInfo` frame an [`ErrorRegion`] adds, `N` the failing command's
-/// line within the body.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ErrorRegionFrame {
-    /// `("LABEL" body line N)`: `eval`, `foreach`, `while`, `for`, `lmap`.
-    Body(String),
-    /// `(TEXT line N)`: a `switch` arm's `"PATTERN" arm`.
-    Line(String),
-    /// `(TEXT)`: `"for" initial command`.
-    Fixed(String),
-    /// None: the command is logged alone (`if`).
-    None,
-}
-
 /// Assembly for an entire module.
 #[derive(Debug, Clone)]
 pub struct ModuleAsm {
@@ -608,6 +557,3 @@ pub struct ProcedureProvenance {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod native_local_tests;

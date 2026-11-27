@@ -25,7 +25,7 @@ use std::collections::HashMap;
 pub struct LocalVarTable {
     compiler_protocol: Option<tcl_syntax::naming::NativeCompiledVariableProtocol>,
     slots: Vec<tcl_runtime_api::NameBytes>,
-    pub(super) index: HashMap<tcl_runtime_api::NameBytes, usize>,
+    index: HashMap<tcl_runtime_api::NameBytes, usize>,
     /// Slots the *compiler* allocated for its own bookkeeping — a `dict for`
     /// iterator, a `catch` result temporary — rather than for a variable the
     /// source names.

@@ -18,6 +18,7 @@ up to the binaries, and is enforced by cargo's own dependency graph.
 | `tcl-compiler` | Tcl pipeline — IR, lowering, CFG, SSA, passes, optimiser, compiler-internal analyses (taint, var-escape, interprocedural), and the stateless helpers the emitter and constant folding share (`codegen_helpers`). The `test-support` feature exposes test fixtures to `tcl-codegen`'s tests only. |
 | `tcl-codegen` | The back end over `tcl-compiler`: bytecode emitter (`codegen`), WASM emitter, reference-body inlining (`inlining`) and the bytecode compile service (`compile_service`). It depends on `tcl-compiler` and nothing in `tcl-compiler` depends on it, so analysis-only consumers build without it. Its `tests` drive `tcl-compiler` internals through the emitters. The `#[doc(hidden)] pub` items `tcl-compiler` exposes exist for this crate's emitters only; every other consumer asks the shared naming and semantic owners ([name-handling.md](name-handling.md) § *Choose the semantic owner*, [shared-utility-contracts-rust.md](shared-utility-contracts-rust.md)), never those internals. |
 | `tcl-registry` | Command / dialect registry (per-command specs, arity, subcommands, arg-roles) + canonical dialect detection. |
+| `tcl-bytecode-tables` | Literal and local variable tables, native literal allocation recipes and source error regions. Shared by the compiler, bytecode artefacts and the standalone WASM runtime, with no opcode or encoding dependency. |
 | `tcl-bytecode`, `tcl-runtime-api`, `tcl-cmd-core`, `tcl-vm`, `tcl-vm-cli` | Bytecode model, runtime API, per-command runtime, the bytecode VM, and its `tclvm` CLI. |
 | `tcl-engine-api`, `tcl-engine-tclvm`, `tcl-engine-wasm`, `tcl-cshim` | The engine-neutral Tcl extension interface, the `tcl-vm` engine behind it, the runtime compiled to `wasm32` as an engine under wasmtime (with the C extensions built for it), and the C Tcl extension shim over it. |
 | `tcl-host-c-abi` | Safe native thread numeric-environment access and explicitly loaded, digest-checked Tcl 8.4 integer updater over the host C ABI. Depends on `tcl-platform`, libc and SHA-256; contains the reviewed errno/conversion/dynamic-library unsafe boundary. |
@@ -63,7 +64,15 @@ dependency graph (a crate can only use what it declares in
 1. **`tcl-core-types`, `tcl-platform`, `tcl-dialect`, `tcl-version` and
    `tcl-userdirs` are graph leaves.**  No dependency on any higher project
    crate — every other crate may depend on them without cycles.
-2. **The compiler stack stays below the analyser-and-up stack.**
+2. **Shared tables stay below bytecode instructions.** `tcl-bytecode-tables`
+   owns `LiteralTable`, `LocalVarTable`, native literals and `ErrorRegion`.
+   `tcl-compiler` and `runtime/rust` depend on these tables directly;
+   `tcl-bytecode` re-exports them for assembly consumers. Opcodes, layout,
+   instruction metadata and formatting stay in `tcl-bytecode`. Compiler
+   native-entry test fixtures may use the VM and assembly as dev-dependencies;
+   production analysis never takes that edge. Check the production graph with
+   `cargo tree -i tcl-bytecode -e normal`.
+3. **The compiler stack stays below the analyser-and-up stack.**
    `tcl-lexer`, `tcl-syntax`, `tcl-compiler`, `tcl-codegen` and
    `tcl-registry` do not depend on `tcl-lsp-core`, `tcl-lsp-server`, or the
    CLI/MCP crates. `tcl-codegen` sits above `tcl-compiler`: a new emitter
@@ -74,11 +83,11 @@ dependency graph (a crate can only use what it declares in
    ([design](../compiler/crate-split-design.md), plan item 90). As each crate
    is extracted, this table and this rule name it, and the `cargo-deny`
    wrappers list in `deny.toml` gives its allowed dependents.
-3. **The registry is data.**  Dialect spec packs live in `tcl-registry`;
+4. **The registry is data.**  Dialect spec packs live in `tcl-registry`;
    they describe commands (arity, subcommands, arg-roles) and are
    reload-safe — they do not reach into compiler internals such as
    codegen or the optimiser.
-4. **LSP feature logic lives in `tcl-lsp-core`; transport lives in
+5. **LSP feature logic lives in `tcl-lsp-core`; transport lives in
    `tcl-lsp-server`.**  Feature providers are pure and reusable; the
    server crate owns the `tower-lsp-server` wiring and the `ServerCapabilities`
    advertised during `initialize`.

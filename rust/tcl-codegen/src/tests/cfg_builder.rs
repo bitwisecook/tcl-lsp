@@ -34,8 +34,8 @@ use tcl_registry::EffectiveRegistrySemantics;
 use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::{CommandRegistry, Traits};
 
+use crate::test_body_identity::{fixture_id, fixture_id_if_present};
 use tcl_compiler::cfg_builder::*;
-use tcl_compiler::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
 use tcl_compiler::ir::{ForeachIterator, IfClause, SwitchArm, SwitchMode};
 
 fn native_registry() -> CommandRegistry {

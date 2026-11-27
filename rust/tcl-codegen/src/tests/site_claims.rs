@@ -21,7 +21,7 @@ use tcl_registry::pack_origin::PackOrigin;
 use tcl_registry::registry::ResolvedCall;
 use tcl_runtime_api::{CommandBindingIdentity, PackFactStamp, SiteClaim};
 
-use tcl_compiler::interprocedural::test_body_identity::fixture_id;
+use crate::test_body_identity::fixture_id;
 
 use tcl_compiler::site_claims::*;
 use tcl_registry::CommandSpec;

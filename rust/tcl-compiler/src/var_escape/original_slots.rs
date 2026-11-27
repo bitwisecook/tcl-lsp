@@ -282,7 +282,7 @@ impl OriginalNativeFrameSlot {
         if owner != identity {
             return None;
         }
-        let table = tcl_bytecode::LocalVarTable::from_native_slot_names(&layout.names);
+        let table = tcl_bytecode_tables::LocalVarTable::from_native_slot_names(&layout.names);
         let ordinal = table.find_native(protocol, simple.as_bytes())?;
         // The comparator may select another counted primary. Its actual key,
         // rather than the requested spelling, must be the represented SSA cell.

@@ -383,7 +383,7 @@ impl Builder<'_> {
                                 let bytes = obj::bytes_of(original.as_ptr());
                                 match obj::native_scalar_cache(original.as_ptr())? {
                                     Some(tcl_syntax::scalar_getter::NativeScalarCache::Number(number)) => {
-                                        let number = tcl_bytecode::NativeExpressionNumberLiteral::from_number(number).ok_or_else(|| unavailable("native resident constant numeric payload"))?;
+                                        let number = tcl_bytecode_tables::NativeExpressionNumberLiteral::from_number(number).ok_or_else(|| unavailable("native resident constant numeric payload"))?;
                                         self.literals.intern_expression_number(&bytes, self.stamp.physical, number)
                                     }
                                     None => self.literals.intern_bytes(&bytes),
@@ -454,7 +454,7 @@ impl Builder<'_> {
                             obj::native_scalar_cache(original.as_ptr())?
                         {
                             let number =
-                                tcl_bytecode::NativeExpressionNumberLiteral::from_number(number)
+                                tcl_bytecode_tables::NativeExpressionNumberLiteral::from_number(number)
                                     .ok_or_else(|| {
                                         unavailable("native expression literal numeric payload")
                                     })?;

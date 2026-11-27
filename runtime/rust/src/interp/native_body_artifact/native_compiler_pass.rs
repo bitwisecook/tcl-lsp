@@ -209,7 +209,7 @@ impl Builder<'_> {
 }
 
 fn materialize_literal(
-    literal: &tcl_bytecode::NativeStringLiteral,
+    literal: &tcl_bytecode_tables::NativeStringLiteral,
     index: usize,
     stamp: &CacheStamp,
     private_objects: &mut HashMap<usize, obj::Owned>,
@@ -278,7 +278,7 @@ fn materialize_literal(
 fn materialize_expression_number(
     stamp: &CacheStamp,
     version: tcl_dialect::TclVersion,
-    value: &tcl_bytecode::NativeExpressionNumberLiteral,
+    value: &tcl_bytecode_tables::NativeExpressionNumberLiteral,
 ) -> Result<obj::Owned, ValueError> {
     if version != stamp.physical || version < tcl_dialect::TclVersion::V8_5 {
         return Err(unavailable("native folded-number literal issuer"));

@@ -350,6 +350,7 @@ rust/
   tcl-registry/           command metadata: ArgRole, Arity, Traits, taint, hooks, BytePayloadSpec,
                           commands/{tcl,irules}/*.rs (one file per command)
   # --- compiler + execution ---
+  tcl-bytecode-tables/    shared literal/local tables, native literals and source error regions
   tcl-bytecode/           Tcl 9 bytecode artifact types (opcodes, FunctionAsm/ModuleAsm, layout, disasm)
   tcl-compiler/           red-green CST (parsing/syntax) + segmenter, IR, lowering, CFG, SSA,
                           dataflow (sccp/intervals/memory_ssa), type_infer,

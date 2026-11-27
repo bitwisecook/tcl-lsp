@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use tcl_compiler::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+use crate::test_body_identity::{fixture_id, fixture_id_if_present};
 
 use super::*;
 use tcl_compiler::lowering::{

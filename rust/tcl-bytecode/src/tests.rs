@@ -16,30 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#[test]
-fn private_original_literal_has_ordered_slot_without_string_receipt() {
-    let mut table = super::LiteralTable::new();
-    let string = table.intern_bytes(b"VALUE");
-    let original = table.register_private_original();
-    assert_eq!((string, original), (0, 1));
-    assert_eq!(
-        table.entries()[string].byte_payload(),
-        Some(b"VALUE".as_slice())
-    );
-    assert_eq!(table.entries()[original].byte_payload(), None);
-    assert_ne!(table.entries()[original], "");
-    assert_eq!(
-        table.entries()[original].allocation(),
-        &super::NativeLiteralAllocation::PrivateOriginal
-    );
-    assert_eq!(
-        table.native_actions(),
-        &[
-            super::NativeLiteralAction::Register(0),
-            super::NativeLiteralAction::Register(1)
-        ]
-    );
-}
 use super::*;
 use tcl_lexer::Span;
 use tcl_syntax::expr::ast::{BinOp, UnaryOp};
@@ -857,49 +833,6 @@ fn opcode_family_partition_total() {
 fn op_from_unaryop() {
     assert_eq!(Op::from_unaryop(UnaryOp::Neg), Some(Op::UMINUS));
     assert_eq!(Op::from_unaryop(UnaryOp::WordNot), Some(Op::IRULE_WORD_NOT));
-}
-
-#[test]
-fn literal_table_intern() {
-    let mut lit = LiteralTable::new();
-    let a = lit.intern("hello");
-    let b = lit.intern("world");
-    let c = lit.intern("hello"); // dedup
-    assert_eq!(a, 0);
-    assert_eq!(b, 1);
-    assert_eq!(c, 0); // same as first
-    assert_eq!(lit.len(), 2);
-}
-
-#[test]
-fn literal_table_register() {
-    let mut lit = LiteralTable::new();
-    let a = lit.register("x");
-    let b = lit.register("x"); // no dedup
-    assert_eq!(a, 0);
-    assert_eq!(b, 1);
-    assert_eq!(lit.len(), 2);
-}
-
-#[test]
-fn literal_pool_preserves_native_bytes_without_unicode_aliasing() {
-    let mut table = LiteralTable::new();
-    let raw = table.intern_bytes(&[0xff]);
-    let unicode = table.intern("ÿ");
-    assert_ne!(raw, unicode);
-    assert_eq!(table.intern_bytes(&[0xff]), raw);
-    assert_eq!(table.entries()[raw].bytes(), &[0xff]);
-    assert!(table.entries()[raw].unicode().is_err());
-    assert_eq!(table.entries()[unicode].unicode(), Ok("ÿ"));
-}
-
-#[test]
-fn local_var_table_intern() {
-    let mut lvt = LocalVarTable::new(&["a", "b"]);
-    assert_eq!(lvt.len(), 2);
-    assert_eq!(lvt.intern("a"), 0); // pre-populated
-    assert_eq!(lvt.intern("c"), 2); // new slot
-    assert_eq!(lvt.entries(), &["a", "b", "c"]);
 }
 
 #[test]

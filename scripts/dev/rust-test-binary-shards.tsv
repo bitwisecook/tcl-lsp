@@ -127,6 +127,8 @@
 4	tcl-bigip	lib	tcl-bigip	tcl_bigip
 4	tcl-bigip-io::ucs	test	tcl-bigip-io	ucs
 4	tcl-bytecode	lib	tcl-bytecode	tcl_bytecode
+4	tcl-bytecode-tables	lib	tcl-bytecode-tables	tcl_bytecode_tables
+4	tcl-bytecode-tables::it_4	test	tcl-bytecode-tables	it_4
 4	tcl-cli	lib	tcl-cli	tcl_cli
 4	tcl-cli-support	lib	tcl-cli-support	tcl_cli_support
 4	tcl-cli::bin/tcl	bin	tcl-cli	tcl

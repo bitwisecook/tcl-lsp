@@ -86,7 +86,9 @@ mod native_control_preparation;
 use native_control_preparation::PreparedControlOperands;
 use std::collections::HashMap;
 use std::rc::Weak;
-use tcl_bytecode::{LiteralTable, LocalVarTable, NativeLiteralAction, NativeLiteralAllocation};
+use tcl_bytecode_tables::{
+    LiteralTable, LocalVarTable, NativeLiteralAction, NativeLiteralAllocation,
+};
 use tcl_lexer::{ExecutablePart, ExecutablePartArena, NativeWord, PartListId, SourceImage, Span};
 use tcl_registry::native_compilation::{
     NativeCompilationContext as Context, NativeCompilationFrame, NativeCompilationMode,

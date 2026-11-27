@@ -61,7 +61,7 @@ pub(crate) enum NativeRuntimeLiteralAction {
     AdoptExpressionNumber {
         index: usize,
         version: tcl_dialect::TclVersion,
-        value: tcl_bytecode::NativeExpressionNumberLiteral,
+        value: tcl_bytecode_tables::NativeExpressionNumberLiteral,
     },
     PrimeExpressionBoolean84(usize),
     Hide(usize),

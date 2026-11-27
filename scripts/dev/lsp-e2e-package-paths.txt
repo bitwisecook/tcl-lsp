@@ -7,6 +7,7 @@ rust/f5-xc
 rust/tcl-bigip
 rust/tcl-bigip-query
 rust/tcl-bytecode
+rust/tcl-bytecode-tables
 rust/tcl-cmd-core
 rust/tcl-codegen
 rust/tcl-compiler

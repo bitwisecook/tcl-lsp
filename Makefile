@@ -3031,15 +3031,15 @@ runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D wa
 zed-query-check: ## Validate the generated Zed highlight queries against the pinned tree-sitter grammar
 	cd $(ROOT)rust/zed-query-check && cargo test
 
-vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode + tcl-runtime-api + tcl-vm + tcl-vm-it)
-	cargo test -p tcl-bytecode -p tcl-runtime-api -p tcl-vm -p tcl-vm-it
+vm-test: ## Run the bytecode VM crates' cargo test (tcl-bytecode-tables + tcl-bytecode + tcl-runtime-api + tcl-vm + tcl-vm-it)
+	cargo test -p tcl-bytecode-tables -p tcl-bytecode -p tcl-runtime-api -p tcl-vm -p tcl-vm-it
 
 vm-test-release: ## Run the bytecode VM crates' cargo test in the release profile
-	cargo test --release -p tcl-bytecode -p tcl-runtime-api -p tcl-vm -p tcl-vm-it
+	cargo test --release -p tcl-bytecode-tables -p tcl-bytecode -p tcl-runtime-api -p tcl-vm -p tcl-vm-it
 
 pgo-engines: ## Build tclvm and the runtime runner with PGO for this host (OUT=target/pgo-engines)
 	bash scripts/perf/pgo_build.sh $(if $(OUT),$(OUT),$(ROOT)target/pgo-engines)
 
 vm-lint: ## Bytecode VM crates: cargo fmt --check + clippy -D warnings
-	cargo fmt -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --check
-	cargo clippy -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --all-targets -- $(CLIPPY_LINT_FLAGS)
+	cargo fmt -p tcl-bytecode-tables -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --check
+	cargo clippy -p tcl-bytecode-tables -p tcl-bytecode -p tcl-runtime-api -p tcl-vm --all-targets -- $(CLIPPY_LINT_FLAGS)

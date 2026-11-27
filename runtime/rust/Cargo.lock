@@ -301,7 +301,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tcl-bytecode"
+name = "tcl-bytecode-tables"
 version = "0.1.0"
 dependencies = [
  "tcl-dialect",
@@ -433,7 +433,7 @@ dependencies = [
  "adler2",
  "crc32fast",
  "flate2",
- "tcl-bytecode",
+ "tcl-bytecode-tables",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",

@@ -743,7 +743,7 @@ fn works_on_values(head: &str, registry: &CommandRegistry) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use tcl_compiler::interprocedural::test_body_identity::fixture_id;
+    use crate::test_body_identity::fixture_id;
 
     use super::*;
 

@@ -74,7 +74,7 @@ engine = ["dep:tcl-engine-api"]
 [dependencies]
 tcl-value-syntax = { path = "../../rust/tcl-value-syntax" }
 # Pure executable artifact tables shared with the native bytecode producer.
-tcl-bytecode = { path = "../../rust/tcl-bytecode" }
+tcl-bytecode-tables = { path = "../../rust/tcl-bytecode-tables" }
 tcl-lexer = { path = "../../rust/tcl-lexer" }
 tcl-syntax = { path = "../../rust/tcl-syntax" }
 # The ordered Tcl release enum (`TclVersion`) this runtime's release-dependent

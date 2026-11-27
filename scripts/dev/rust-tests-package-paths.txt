@@ -13,6 +13,7 @@ rust/tcl-bigip
 rust/tcl-bigip-io
 rust/tcl-bigip-query
 rust/tcl-bytecode
+rust/tcl-bytecode-tables
 rust/tcl-cli
 rust/tcl-cli-support
 rust/tcl-cmd-core

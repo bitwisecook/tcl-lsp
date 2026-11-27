@@ -7,7 +7,7 @@ rust/bigip-report-gen
 rust/tcl-bigip
 rust/tcl-bigip-io
 rust/tcl-bigip-query
-rust/tcl-bytecode
+rust/tcl-bytecode-tables
 rust/tcl-cmd-core
 rust/tcl-compiler
 rust/tcl-core-types

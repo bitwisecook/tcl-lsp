@@ -34,7 +34,7 @@ tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
-tcl-bytecode = { path = "../tcl-bytecode" }
+tcl-bytecode-tables = { path = "../tcl-bytecode-tables" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
@@ -65,6 +65,8 @@ test-support = []
 workspace = true
 
 [dev-dependencies]
+# Native-entry capture fixtures use the VM's assembly contract only in tests.
+tcl-bytecode = { path = "../tcl-bytecode" }
 # The shared reference-interpreter lookup the output witnesses compare
 # under (`witness_tclsh`), which fails a test whose release
 # `TCL_LSP_REQUIRE_TCLSH` requires and reports any other it skips.

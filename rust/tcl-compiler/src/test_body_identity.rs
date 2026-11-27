@@ -49,11 +49,6 @@ impl FixtureBodyLabel for crate::cfg::Function {
         Cow::Borrowed(&self.name)
     }
 }
-impl FixtureBodyLabel for tcl_bytecode::FunctionAsm {
-    fn fixture_label(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&self.name)
-    }
-}
 impl FixtureBodyLabel for super::MethodSummary {
     fn fixture_label(&self) -> Cow<'_, str> {
         Cow::Borrowed(&self.base.qualified_name)

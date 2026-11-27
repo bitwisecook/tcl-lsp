@@ -17,9 +17,13 @@ WASM submodule:
 - `emit.rs` and `structured.rs` — common structured-emission seam; and
 - `wasm/` — the canonical Tcl-to-WebAssembly pipeline.
 
-Bytecode artefact types, instruction layout, and formatting live in the leaf
-`tcl-bytecode` crate and are re-exported by `tcl-compiler::codegen`. The VM is
-an execution artefact; it is not a selectable Tcl-to-WebAssembly backend.
+Bytecode artefact types, instruction layout, and formatting live in
+`tcl-bytecode` and are re-exported by `tcl-codegen::codegen`. Shared literal
+and local variable tables, native literal recipes and source error regions
+live below it in `tcl-bytecode-tables`; `tcl-bytecode` re-exports these types.
+The compiler and `runtime/rust` read the tables directly, so editing an opcode
+never rebuilds either production consumer. The VM is an execution artefact;
+it is not a selectable Tcl-to-WebAssembly backend.
 
 ## WASM modules
 

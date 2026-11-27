@@ -91,6 +91,16 @@ changes in the step that moves its module.
 | LSP feature providers | `tcl-lsp-core` | `folding`, `document_symbols`, `hover`, … |
 | Incremental query graph | `tcl-lsp-db` | `lib` |
 
+## Shared bytecode tables
+
+`tcl-bytecode-tables` owns literal pools, local-slot tables, native literal
+recipes and source error regions. `tcl-compiler` and the standalone
+`runtime/rust` consume it without depending on bytecode instructions.
+`tcl-bytecode` depends on it and re-exports the tables alongside `Op`,
+`Instruction`, assembly, layout and formatting. Codegen and VM consumers
+retain their existing assembly paths. Compiler test fixtures use assembly
+only as a dev-dependency; `test-support` does not add that production edge.
+
 ## LSP server runtime
 
 The native server holds no hand-maintained analysis caches. Its runtime state
