@@ -125,6 +125,89 @@ fn dis_keeps_plain_tcl_free_of_irules_opcodes() {
     );
 }
 
+/// The instructions of the `ByteCode <unit>` block in a `tcl dis` rendering,
+/// one per entry, with the pc and literal index dropped: a push is
+/// `push "<value>"`, anything else is its opcode and operands.
+fn dis_unit_ops(dialect: &str, source: &str, unit: &str) -> Vec<String> {
+    let text = String::from_utf8(run_tcl(&["dis", "--dialect", dialect, "--source", source]))
+        .expect("utf-8");
+    let header = format!("ByteCode {unit},");
+    let mut lines = text.lines().skip_while(|line| !line.starts_with(&header));
+    assert!(
+        lines.next().is_some(),
+        "no {unit} in --dialect {dialect}:\n{text}"
+    );
+    lines
+        .take_while(|line| !line.starts_with("ByteCode "))
+        .filter_map(|line| {
+            let (_, instruction) = line.trim_start().strip_prefix('(')?.split_once(") ")?;
+            let (op, comment) = instruction.split_once("\t# ").unwrap_or((instruction, ""));
+            Some(if op.starts_with("push") {
+                format!("push {comment}")
+            } else {
+                op.to_owned()
+            })
+        })
+        .collect()
+}
+
+fn contains_run(ops: &[String], run: &[&str]) -> bool {
+    ops.windows(run.len()).any(|window| window == run)
+}
+
+/// A variable read inside a command substitution must compile to a load under
+/// every F5 profile — top level, in a proc, and in an iRules `when` body —
+/// never an empty literal. F5 invokes `set` and `list` generically and has no
+/// compiled locals, so the pinned shape is the substitution's own lowering,
+/// which is what tcl8.4 emits for the same substitution at top level.
+#[test]
+fn dis_loads_variables_inside_command_substitution_under_f5_profiles() {
+    let top = "set l x; set m [list a $l]\n";
+    let proc_src = "proc p {l} {\n    set m [list a $l]\n    return \"v=$l\"\n}\n";
+    let when_src = "when HTTP_REQUEST {\n set l x\n set m [list a $l]\n}\n";
+    let element = "set m [foo $a(x$i)]\n";
+    let subst = [
+        "push \"list\"",
+        "push \"a\"",
+        "push \"l\"",
+        "loadScalarStk",
+        "invokeStk1 3",
+    ];
+    let element_subst = [
+        "push \"foo\"",
+        "push \"a\"",
+        "push \"x\"",
+        "push \"i\"",
+        "loadScalarStk",
+        "strcat 2",
+        "loadArrayStk",
+        "invokeStk1 2",
+    ];
+    let baseline = dis_unit_ops("tcl8.4", top, "::top");
+    assert!(
+        contains_run(&baseline, &subst),
+        "tcl8.4 baseline moved: {baseline:#?}"
+    );
+    let mut cases = Vec::new();
+    for dialect in ["f5-tmsh", "f5-irules", "f5-iapps"] {
+        cases.push((dialect, top, "::top", &subst[..]));
+        cases.push((dialect, proc_src, "::p", &subst[..]));
+        cases.push((dialect, element, "::top", &element_subst[..]));
+    }
+    cases.push(("f5-irules", when_src, "::when::HTTP_REQUEST", &subst[..]));
+    for (dialect, source, unit, run) in cases {
+        let ops = dis_unit_ops(dialect, source, unit);
+        assert!(
+            !ops.iter().any(|op| op == "push \"\""),
+            "{dialect} {unit} pushes an empty literal: {ops:#?}"
+        );
+        assert!(
+            contains_run(&ops, run),
+            "{dialect} {unit} lost the load: {ops:#?}"
+        );
+    }
+}
+
 #[test]
 fn compwasm_emits_valid_module_header() {
     let dir = std::env::temp_dir().join("tcl_compwasm_test");

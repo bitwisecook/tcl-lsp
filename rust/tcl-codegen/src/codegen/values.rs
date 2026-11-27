@@ -626,6 +626,10 @@ impl CodegenCtx<'_> {
     /// unexpanded and the element lookup fails. A pure literal key is pushed
     /// verbatim.
     pub fn push_array_key(&mut self, elem: &str) {
+        if self.source_string_protocol.is_none() {
+            self.emit_value(elem, true);
+            return;
+        }
         let image =
             tcl_lexer::SourceImage::from_bytes(elem.as_bytes().to_vec(), self.source.channel());
         let extent = tcl_lexer::Span::new(
@@ -648,6 +652,24 @@ impl CodegenCtx<'_> {
     pub(crate) fn emit_variable_reference(&mut self, spelling: &str) -> bool {
         if !tcl_syntax::naming::is_whole_variable_reference(spelling, self.lexer_config()) {
             return false;
+        }
+        // The arena emitter mirrors a native compiler and refuses without a
+        // native string protocol (an analysis-only profile such as the F5
+        // ones), leaving an empty literal where the load belongs. Such a
+        // reference loads through the generic template owner instead.
+        if self.source_string_protocol.is_none() {
+            use super::helpers::{SubstPart, parse_subst_template};
+            return match parse_subst_template(spelling, self.lexer_config()).as_deref() {
+                Some([SubstPart::Var(name)]) => {
+                    self.load_var(name);
+                    true
+                }
+                Some([SubstPart::LiteralElement { base, key }]) => {
+                    self.load_literal_element(base, key);
+                    true
+                }
+                _ => false,
+            };
         }
         let image =
             tcl_lexer::SourceImage::from_bytes(spelling.as_bytes().to_vec(), self.source.channel());
