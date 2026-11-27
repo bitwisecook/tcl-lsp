@@ -51,6 +51,31 @@ review. The checks use syntactic recognisers, so calling a shared grammar
 owner remains the responsibility of code review when new code uses a different
 spelling or data path.
 
+## Test cleanup survey
+
+[Test cleanup](test-cleanup.tsv) is the per-crate review queue for item 499.
+`cargo xtask test-cleanup` reports candidate test modules and counts;
+`--write` creates the initial ledger or lowers it, and `--check` verifies it.
+Neither write nor check accepts a new row or an increased count. A renamed
+module must be reviewed before it moves; a rename cannot silently reset the
+allowance. This survey is not a new prerequisite for the crate extractions.
+
+Each row names the crate, source file and inline module, then the candidate
+function-body count and the counts of private-field reads, internal-item
+paths and private-method calls. The scanner parses Rust, including expression
+arguments of assertions, and ignores quoted Rust and Tcl. It follows declared
+`cfg(test)` files, inline test modules, integration tests and test-support
+bodies. Generated tables and recorded fixture data are excluded.
+
+This is a syntactic review inventory, not Rust name resolution or a finding
+that a test should be deleted. Private names are collected per crate; a name
+that is also declared public is ambiguous and is omitted. External receivers
+can share private field or method names, and statement/pattern macros and
+indirect helper calls need manual review. Counts cannot establish the absence
+of implementation assertions. Review each module against the public API or
+oracle, retain an unobservable invariant only with its reason, and regenerate
+the ledger as the owning split rewrites its tests.
+
 ## Contract claims
 
 Add each behavioural claim with a link to its test declaration or vector row.

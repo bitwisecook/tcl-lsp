@@ -55,6 +55,47 @@ fn arithmetic_verdict() {
 }
 
 #[test]
+fn signed_division_and_remainder_match_the_bpf_contract() {
+    let cases = [
+        (-7_i64, 2_i64),
+        (7, -2),
+        (-7, -2),
+        (7, 2),
+        (i64::MIN, -1),
+        (i64::MIN, 1),
+        (i64::MIN, i64::MIN),
+        (i64::MAX, i64::MIN),
+        (-7, 0),
+        (7, 0),
+        (0, -2),
+    ];
+    for (a, b) in cases {
+        for (operator, expected) in [
+            ("/", if b == 0 { 0 } else { a.wrapping_div(b) }),
+            ("%", if b == 0 { a } else { a.wrapping_rem(b) }),
+        ] {
+            let literal = |n: i64| {
+                if n == i64::MIN {
+                    format!("0 - {} - 1", i64::MAX)
+                } else {
+                    n.to_string()
+                }
+            };
+            let src = format!(
+                "when SOCKET_FILTER {{ setint a {{{}}}\n setint b {{{}}}\n accept {{$a {operator} $b}} }}\n",
+                literal(a),
+                literal(b),
+            );
+            assert_eq!(
+                run_src(&src, &mut [0; 8]),
+                expected.cast_unsigned(),
+                "{a} {operator} {b}"
+            );
+        }
+    }
+}
+
+#[test]
 fn signed_shift_and_32bit_widths() {
     let mut pkt = vec![0u8; 8];
     // `>>` is arithmetic (sign-preserving): -8 >> 1 == -4.

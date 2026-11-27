@@ -195,6 +195,12 @@ one operand is negative (`-7 / 2` is `-3` here, `-4` in Tcl). This narrower,
 verifier-native contract is deliberate; the front-end does not pretend to be
 Tcl. `>>` is arithmetic (sign-preserving).
 
+Kernel targets emit the native signed instructions. The rbpf simulator target
+uses unsigned magnitudes and restores the result sign, because the bundled
+rbpf interpreter ignores the signed-mode instruction offset. This preserves
+truncation, wrapping `MIN / -1`, and eBPF's zero-divisor results (zero for
+division, the dividend for remainder).
+
 ## Layer 3: framework and event model
 
 The framework processes declarations in this order:

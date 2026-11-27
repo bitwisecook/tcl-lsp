@@ -1,5 +1,43 @@
 # Current LSP naming migration state
 
+## Current goal: benchmark, survey, compiler tests and runtime gaps
+
+- BPF signed division is repaired for the userspace simulator. rbpf ignores
+  the native signed-mode offset, so its target now divides unsigned magnitudes
+  and restores the signed quotient/remainder. Kernel targets retain their
+  native signed opcodes. The public run regression reproduced `-7 / 2`
+  returning a huge positive result before the fix; it now covers mixed signs,
+  zero divisors, MIN and wrapping overflow. All 9 socket-filter tests and all
+  32 codegen tests pass (`/tmp/bpf-signed-division-tests-work.log`,
+  `/tmp/bpf-signed-division-codegen-tests-work.log`); the failure capture is
+  `/tmp/bpf-signed-division-baseline-work.log`.
+- Item 499's survey is implemented. `cargo xtask test-cleanup --write` and
+  `--check` pass: 3,218 modules, 16,024 candidate function bodies, 49 crates.
+  All 3 recogniser/ratchet tests pass. This is a documented syntactic review
+  queue, not a claim that every listed assertion is invalid or that all
+  implementation assertions have been found. Logs:
+  `/tmp/test-cleanup-survey-tests-work.log`,
+  `/tmp/test-cleanup-survey-work.log`,
+  `/tmp/test-cleanup-survey-check-work.log`.
+- Item 106a's scripts/CI harness and manual non-gating workflow are implemented;
+  its benchmark-runner baseline is pending. The owner chose to keep scripts/CI
+  scope and record unavailable phase interfaces and unbuilt artefacts explicitly.
+  All 9 harness tests and Python lint checks pass. No release latency has been
+  measured in this agent worktree.
+- Item 267's public-API rewrite and the five VM-vs-interpreter repairs remain
+  open. The exact Tcl 8.4–9.1 sources and pinned Jim oracle have been fetched;
+  all six oracles have built successfully. Direct probes confirm the requested
+  superclass, rename-error and error-frame observations, and Jim source metadata.
+
+Focused Clippy for `bpf-tcl-codegen`, `bpf-tcl` and `xtask` passes with warnings
+denied (`/tmp/goal-survey-bpf-clippy-work.log`). Workspace formatting and
+whitespace checks pass. The full Rust/pre-PR gates have not yet been rerun for
+these changes. Previous
+item 498 gate timeouts are recorded below; they are not validation of this
+change set. Focused results above permit development pushes on `work`, not a
+PR or merge. Before a PR, run both complete gates, refresh generated drift
+reports and resolve the existing shard omissions.
+
 ## Item 498: bytecode tables
 
 `tcl-bytecode-tables` now owns the literal and local tables, native literal

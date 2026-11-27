@@ -6,6 +6,21 @@ ranked plan it works through are in the report
 <https://claude.ai/artifact/BFfNK69TYvCcQMzTRqQLKi> (private; ask the owner
 for access).
 
+## Now-1 analysis and engine baseline (106a)
+
+The non-gating harness is `scripts/perf/split_baseline.py`, invoked by
+`perf.yml` in manual `split-baseline` mode. It measures release binaries on the
+benchmark runner; no agent-worktree latency is a baseline. Runner results are
+pending. This section is the single baseline read by item 90's measurement
+record and item 483; neither restates a separate budget.
+
+Owner decision, 27 November 2026: the harness stays scripts/CI-only. Rows for
+summary-only timing, 50-user-pack warm loading and unbuilt release artefacts
+remain explicitly unavailable until their owning interfaces/builds exist.
+Missing, provisional and invalid answers contribute no percentile samples.
+The recorded summary must include the measured revision, runner link, sample
+counts and every unavailable or partial row.
+
 ## Items, in priority order
 
 | # | Item | State | Where |

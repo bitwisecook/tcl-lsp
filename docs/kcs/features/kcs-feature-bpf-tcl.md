@@ -54,7 +54,8 @@ Key contracts to know:
   enforces its capacity; an `array` map is preallocated and zero-filled.
 - **Integer division is truncated, not floored.** `/` and `%` follow eBPF
   signed truncated-toward-zero division, which diverges from Tcl floor division
-  only when exactly one operand is negative.
+  only when exactly one operand is negative. The userspace simulator and kernel
+  targets follow the same signed arithmetic contract.
 
 ## Example
 

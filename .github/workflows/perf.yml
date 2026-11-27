@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, paired-source-point-memo-diagnostic, prep-pr-candidate-validation, jetbrains-candidate-validation, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, source-point-corpus2-diagnostics, jim-source-layout11-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
+        options: [standard, split-baseline, paired, paired-source-point-memo-diagnostic, prep-pr-candidate-validation, jetbrains-candidate-validation, runtime-diagnostics, runtime-fulltom-diagnostics, runtime-fulltom-focused-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics, spectcl-fold-diagnostics, jim-source-diagnostics, compiler-original58-diagnostics, source-point-corpus2-diagnostics, jim-source-layout11-diagnostics, c84-formatter-diagnostics, wasm-real-link-diagnostics, irules-preflight-diagnostics, release-rust-check-diagnostics, lsp-host-navigation-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary diagnostics
         required: false
@@ -170,10 +170,46 @@ jobs:
           { echo "## Interpreter instructions per iteration"; echo; cat "$RUNNER_TEMP/table.md"; } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
+  split-baseline:
+    # Item 106a records measurements only; budget enforcement belongs to 106.
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'split-baseline'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.candidate_sha || github.sha }}
+          fetch-depth: 1
+      - uses: actions-rust-lang/setup-rust-toolchain@a188e68d0fd2bd36ad51dccb2b07ba6e75105f30 # v2.0.1
+        with:
+          toolchain: stable
+          cache-key: perf-split-baseline
+      - name: Build release benchmark binaries
+        run: cargo build --locked --release -p tcl-lsp-server -p tcl-vm-cli
+      - name: Fetch and verify Tcllib 2.0
+        run: bash scripts/dev/ensure-test-deps.sh --tcllib-only
+      - name: Record the Now-1 baseline
+        run: |
+          python3 scripts/perf/split_baseline.py \
+            --server target/release/tcl-lsp-server \
+            --vm target/release/tclvm \
+            --tcllib tmp/tcllib-2.0 \
+            --revision "$(git rev-parse HEAD)" \
+            --out build/split-baseline
+          cat build/split-baseline/baseline.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve baseline measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: split-baseline-${{ github.run_id }}
+          path: build/split-baseline
+          if-no-files-found: warn
+          retention-days: 90
+
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'paired-source-point-memo-diagnostic' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'source-point-corpus2-diagnostics' && inputs.mode != 'jim-source-layout11-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'split-baseline' && inputs.mode != 'paired' && inputs.mode != 'paired-source-point-memo-diagnostic' && inputs.mode != 'jetbrains-candidate-validation' && inputs.mode != 'prep-pr-candidate-validation' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'runtime-fulltom-focused-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics' && inputs.mode != 'spectcl-fold-diagnostics' && inputs.mode != 'jim-source-diagnostics' && inputs.mode != 'compiler-original58-diagnostics' && inputs.mode != 'source-point-corpus2-diagnostics' && inputs.mode != 'jim-source-layout11-diagnostics' && inputs.mode != 'c84-formatter-diagnostics' && inputs.mode != 'wasm-real-link-diagnostics' && inputs.mode != 'irules-preflight-diagnostics' && inputs.mode != 'release-rust-check-diagnostics' && inputs.mode != 'lsp-host-navigation-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:

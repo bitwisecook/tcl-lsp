@@ -295,3 +295,43 @@ A benchmark is a Tcl script with an `@N@` iteration placeholder. Hash maps on
 the compile path must use a deterministic hasher: a per-process random seed
 makes startup cost vary between the two runs and swamps the per-iteration
 difference.
+
+## Crate-split baseline (106a)
+
+`split_baseline.py` records the release-build Now-1 baseline on a benchmark
+runner. Dispatch `perf.yml` with mode `split-baseline` and optionally
+`candidate_sha` pinned to the revision to measure. This job enforces no latency
+or size budget and does not run on pull requests. It builds the server and VM
+in the existing `release` profile and verifies the fixed Tcllib 2.0 source.
+
+The editor-action workspaces are deterministic: a six-line file, a 10,000-line
+file with real procedure definitions and calls, and a two-file `source`
+workspace. Each records startup time/RSS, cold scan, warm definition p95,
+references, formatting, edit-to-definition latency and restart scan. The
+post-edit clock includes readiness of the current version's diagnostics;
+this is not a claim about a binding-only phase. Initial workspace readiness
+is required, and provisional, missing and invalid answers are excluded from
+percentiles with their counts and reasons retained.
+
+The Tcllib row scans and analyses every `.tcl` module, acknowledging each
+opened document's diagnostics. VM and optional runtime engine rows use the
+shared `interp/` scripts at the recorded iteration count, with Tcl 9.0 and
+`TCL_LIBRARY` unset; times include process startup. RSS is the whole server
+process, normalised by the workspace's line count, not an allocator delta.
+
+JSON and Markdown reports are checkpointed between workspaces and uploaded
+as the `split-baseline-<run id>` artifact. Copy the measured summary and run
+link into `docs/work/build-test-cost/current-state.md`; item 90's measurement
+record and item 483 read that single baseline. A partial row is not a complete
+performance result, and an empty sample set has no percentile.
+
+Owner decision, 27 November 2026: keep this scripts/CI-only. Summary-only
+timing and the 50-user-pack warm-load interface remain explicitly unavailable
+until their owners expose them (483 and 416). Unbuilt WASM, VSIX, JetBrains,
+web and WASI artefacts also remain unavailable; pass `--artefact KEY=PATH`
+when a runner has built one from the measured revision. Never substitute a
+size from another revision. No new Rust instrumentation or packaging pipeline
+is part of this harness.
+
+Local harness checks (no release build or performance claim):
+`python3 -m pytest scripts/perf/test_split_baseline.py`.

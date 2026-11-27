@@ -134,6 +134,7 @@ mod semantic_ownership;
 mod semantics_matrix;
 mod sslictcl_data;
 mod tcltest_sweep;
+mod test_cleanup;
 mod tzdata_bundle;
 mod util;
 mod value_transfers;
@@ -514,6 +515,16 @@ enum Command {
     #[command(name = "owner-resolution")]
     OwnerResolution,
 
+    /// Survey tests that may assert private state; its reviewed ledger only shrinks.
+    TestCleanup {
+        /// Write the initial ledger, or remove entries and lower counts.
+        #[arg(long, conflicts_with = "check")]
+        write: bool,
+        /// Verify the ledger matches without increasing its allowance.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Check test fixture TSV readers and canonical oracle release keys.
     FixtureOwnership,
 
@@ -774,6 +785,7 @@ fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::FileSizes { check } => file_sizes::run(check),
         Command::OwnerResolution => owner_resolution::run(),
         Command::FixtureOwnership => fixture_ownership::run(),
+        Command::TestCleanup { write, check } => test_cleanup::run(write, check),
         Command::DefinitionsGate => definitions_gate(),
         Command::PlanRows { items, all } => plan_rows::run(&items, all),
         Command::Conformance { update, harness } => conformance(update, &harness),

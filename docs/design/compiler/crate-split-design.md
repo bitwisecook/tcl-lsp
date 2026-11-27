@@ -95,7 +95,7 @@ without LTO, and so does the `ci` profile (`lto = false`, 16 codegen units,
 for a cost release builds do not have, and a release target in every
 worktree would cost the disk the split saves. Items 106, 306 and 483 use the
 same profile. Measurements run alongside the steps and never block one:
-they are recorded against the Now-1 baseline, and a regression gates a later
+they are recorded against the [Now-1 baseline](../../work/build-test-cost/current-state.md#now-1-analysis-and-engine-baseline-106a) from `scripts/perf/split_baseline.py`, and a regression gates a later
 stage (owner priority, 26 November 2026).
 
 ## Why now
