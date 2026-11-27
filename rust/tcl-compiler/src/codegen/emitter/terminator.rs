@@ -193,11 +193,7 @@ impl CodegenCtx<'_> {
 
     fn emit_return(&mut self, value: Option<&str>, expr: Option<&ExprNode>, braced: bool) {
         if let Some(e) = expr {
-            // Proc with `return [expr {...}]` lowered to an expression
-            let guaranteed_numeric = self.emit_expr(e);
-            if !guaranteed_numeric {
-                self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
-            }
+            self.emit_return_expr(e, value, None);
         } else if braced {
             // See `emit_proc_return`: a braced value is literal text.
             self.push_lit_verbatim(value.unwrap_or(""));
@@ -219,6 +215,25 @@ impl CodegenCtx<'_> {
             // of ending the script.
             self.push_lit("");
             self.emit(Op::RETURN_IMM, vec![Operand::Imm(0), Operand::Imm(1)]);
+        }
+    }
+
+    /// Emit the expression `return [expr {…}]` is lowered to. Its errors
+    /// name the inner `expr` command, as C logs it (`expr {1/$x}`), not the
+    /// enclosing `return`.
+    fn emit_return_expr(
+        &mut self,
+        e: &ExprNode,
+        spelling: Option<&str>,
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) {
+        let start = self.instructions.len();
+        let guaranteed_numeric = self.emit_expr(e);
+        if !guaranteed_numeric {
+            self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
+        }
+        if let Some(spelling) = spelling {
+            self.stamp_substitution_error_info(start, spelling, tokens);
         }
     }
 
@@ -301,10 +316,13 @@ impl CodegenCtx<'_> {
         self.cmd_index += 1;
 
         if let Some(e) = expr.as_ref() {
-            let guaranteed_numeric = self.emit_expr(e);
-            if !guaranteed_numeric {
-                self.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
-            }
+            let tokens = value_word.as_ref().and_then(|word| {
+                whole_word_command_tokens(
+                    word,
+                    tcl_lexer::LexerConfig::for_profile(self.registry.profile()),
+                )
+            });
+            self.emit_return_expr(e, value.as_deref(), tokens.as_ref());
         } else if self.is_proc && is_cmd_subst {
             // In a proc body, a return value of [cmd ...] inlines.
             let tokens = value_word.as_ref().and_then(|word| {
