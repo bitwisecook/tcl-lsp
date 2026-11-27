@@ -485,11 +485,7 @@ fn emit_inst(inst: &Inst, ctx: EmitCtx, pend: &mut Vec<Pending>) -> Result<(), B
             pend.push(Pending::Ins(ldx(SZ_DW, R1, R10, slot_off(a.0))));
             pend.push(Pending::Ins(ldx(SZ_DW, R2, R10, slot_off(b.0))));
             let (alu_op, off) = bin_alu(*op);
-            if ctx.target == TargetAbi::RbpfFixedMbuff && matches!(alu_op, DIV | MOD) {
-                emit_rbpf_division(alu_op, pend);
-            } else {
-                pend.push(Pending::Ins(alu64_reg_off(alu_op, R1, R2, off)));
-            }
+            pend.push(Pending::Ins(alu64_reg_off(alu_op, R1, R2, off)));
             pend.push(Pending::Ins(stx(SZ_DW, R10, R1, slot_off(dst.0))));
         }
         Inst::Un { dst, op, a, .. } => {
@@ -704,30 +700,6 @@ fn emit_kernel_lookup(
     pend.push(Pending::Ins(call(FN_MAP_LOOKUP)));
 }
 
-/// rbpf ignores the signed-mode offset. Divide unsigned magnitudes and restore
-/// the quotient's sign, or the dividend's sign for a remainder. The wrapping
-/// magnitude also represents MIN; zero divisors retain the eBPF zero/no-op rule.
-fn emit_rbpf_division(op: u8, pend: &mut Vec<Pending>) {
-    for instruction in [
-        mov64_reg(R3, R1),
-        alu64_imm(ARSH, R3, 63),
-        mov64_reg(R4, R2),
-        alu64_imm(ARSH, R4, 63),
-        alu64_reg(XOR, R1, R3),
-        alu64_reg(SUB, R1, R3),
-        alu64_reg(XOR, R2, R4),
-        alu64_reg(SUB, R2, R4),
-        alu64_reg(op, R1, R2),
-    ] {
-        pend.push(Pending::Ins(instruction));
-    }
-    if op == DIV {
-        pend.push(Pending::Ins(alu64_reg(XOR, R3, R4)));
-    }
-    pend.push(Pending::Ins(alu64_reg(XOR, R1, R3)));
-    pend.push(Pending::Ins(alu64_reg(SUB, R1, R3)));
-}
-
 fn emit_term(term: &Term, pend: &mut Vec<Pending>) {
     match term {
         Term::Goto { target, .. } => pend.push(Pending::Ja(target.0)),
@@ -932,26 +904,28 @@ mod tests {
         // the unsigned forms that mangle negative operands.
         let div_op = alu64_reg_off(DIV, R1, R2, 1).op;
         let mod_op = alu64_reg_off(MOD, R1, R2, 1).op;
-        let obj = emit_kernel(
-            "when SOCKET_FILTER {\n\
+        let src = "when SOCKET_FILTER {\n\
              setint x {0 - 8}\n\
              setint y {$x / 2}\n\
              setint z {$x % 3}\n\
-             accept\n}\n",
-            TargetAbi::KernelSocketFilter,
-        );
-        let div = obj
-            .insns
-            .iter()
-            .find(|i| i.op == div_op)
-            .expect("a signed div instruction");
-        assert_eq!(div.off, 1, "division must be signed (off==1)");
-        let modi = obj
-            .insns
-            .iter()
-            .find(|i| i.op == mod_op)
-            .expect("a signed mod instruction");
-        assert_eq!(modi.off, 1, "modulo must be signed (off==1)");
+             accept\n}\n";
+        for obj in [
+            emit_src(src),
+            emit_kernel(src, TargetAbi::KernelSocketFilter),
+        ] {
+            let div = obj
+                .insns
+                .iter()
+                .find(|i| i.op == div_op)
+                .expect("a signed div instruction");
+            assert_eq!(div.off, 1, "division must be signed (off==1)");
+            let modi = obj
+                .insns
+                .iter()
+                .find(|i| i.op == mod_op)
+                .expect("a signed mod instruction");
+            assert_eq!(modi.off, 1, "modulo must be signed (off==1)");
+        }
     }
 
     #[test]
