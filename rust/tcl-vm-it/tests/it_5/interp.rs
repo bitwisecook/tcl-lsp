@@ -17,12 +17,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod commands;
+mod family_b_tests;
+mod jim_local;
 mod jim_table_key_tests;
 mod native_command_holder_tests;
 mod native_compiled_append;
 mod native_definition_registration_tests;
 mod native_execution_constants;
 mod native_interpreter_paths;
+mod native_introspection;
 mod native_jim_import;
 mod native_namespace_names;
 mod native_oo_bootstrap_inventory_tests;

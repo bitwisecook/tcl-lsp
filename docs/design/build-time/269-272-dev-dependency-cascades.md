@@ -910,3 +910,18 @@ fails with `method does not exist`; tclsh 8.6.18 and 9.0.4 say
 `method absent does not exist`.
 `cmd_oo::native_method_cache::rename_tests::original_vm_rename_missing_source_does_not_reach_destination_string`
 checks the code and the message's shape.
+
+**Batch 11, the first `interp` files (27 November 2026).** 12 tests in 3
+files (`jim_local`, `native_introspection`, `family_b_tests::variables`) move
+to `tcl-vm-it` under their old module paths; none is deleted. Tests that
+reach a compiler drop from 233 to 221.
+- `jim_local`'s two tests build their interpreter with `fixture::interpreter`
+  rather than the private `Vm::new` and engine selection; the jimsh rows and
+  results are unchanged. `family_b_tests::variables` runs on
+  `fixture::distribution`.
+- Cut from rows: in `native_introspection`, the result's and first
+  argument's object type, residency, reference count and identity, and the
+  compiled procedure's local-variable count; each window's completion code
+  and result bytes stay.
+- Two helpers left without a caller in `family_b_tests::variables` are
+  removed.

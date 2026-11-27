@@ -680,43 +680,6 @@ fn upcall(vm: &mut Vm, arguments: &[Value]) -> Completion<Value> {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn local_frames_and_nested_upcalls_match_original_native_lineage() {
-        let fixture = include_str!("../../../tcl-syntax/tests/data/native_jim_local/behaviour.tsv");
-        let mut checked = 0;
-        for row in fixture.lines() {
-            let fields: Vec<_> = tcl_test_support::fixture::tsv_fields(row).collect();
-            let expected: Vec<u8> = fields[1]
-                .as_bytes()
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-                .collect();
-            let profile = tcl_registry::model::ingress::resolve_environment("jim").unit_profile();
-            let mut vm = crate::Vm::new();
-            assert!(vm.set_native_engine_profile(profile));
-            vm.set_dialect_profile(profile);
-            vm.set_compiler(Box::new(
-                tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-            ));
-            let result = vm.eval_source(fields[2]).unwrap();
-            assert!(
-                result.code.is_ok(),
-                "{}: {:?}",
-                fields[2],
-                result.result.native_object_snapshot()
-            );
-            assert_eq!(
-                result.result.string_bytes().as_ref(),
-                expected.as_slice(),
-                "{}",
-                fields[2]
-            );
-            checked += 1;
-        }
-        assert_eq!(checked, 5);
-    }
 
     struct PreviousOwnerObserver {
         world: std::rc::Weak<super::native_name_world::NameWorldCell>,
@@ -1081,24 +1044,5 @@ mod tests {
             original.resident_string_bytes().unwrap().as_ref(),
             b"original_local"
         );
-    }
-}
-
-#[cfg(test)]
-mod current_cleanup_tests {
-    #[test]
-    fn available_local_cleanup_selects_the_actual_recreated_entry() {
-        let profile = tcl_registry::model::resolve_environment("jim").unit_profile();
-        let mut vm = crate::Vm::new();
-        assert!(vm.set_native_engine_profile(profile));
-        vm.set_dialect_profile(profile);
-        vm.set_compiler(Box::new(
-            tcl_codegen::compile_service::BytecodeCompileService::for_profile(profile),
-        ));
-        let source = "proc p {} {return BASE};proc driver {} {local proc p {} {return LOCAL};rename p {};proc p {} {return OTHER};return DONE};list [driver] [llength [info commands p]]";
-        let result = vm.try_eval_source(source).unwrap();
-        assert!(result.code.is_ok());
-        assert_eq!(result.result.string_bytes().as_ref(), b"DONE 0");
-        assert!(vm.execution_refusal.is_none());
     }
 }
