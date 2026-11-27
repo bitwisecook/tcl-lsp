@@ -37,6 +37,6 @@ fn testssl_conversion_emits_loadable_sslictcl() {
         String::from_utf8_lossy(&output.stderr)
     );
     let source = String::from_utf8(output.stdout).expect("SslicTcl text");
-    assert!(!source.is_empty());
+    assert_ne!(source, "");
     tcl_sslictcl::load(&source).expect("conversion emits valid SslicTcl");
 }
