@@ -52,7 +52,7 @@ case "$PATH_TO_CLASSIFY" in
     rust/tcl-engine-tclvm/* | rust/tcl-host-native/* | rust/tcl-lexer/* | \
     rust/tcl-lsp-core/* | rust/tcl-native-model/* | rust/tcl-platform/* | rust/tcl-regex/* | \
     rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | \
-    rust/tcl-spectcl/* | rust/tcl-source/* | rust/tcl-bigip-schema/* | rust/tcl-syntax/* | rust/tcl-test-support/* | \
+    rust/tcl-spectcl/* | rust/tcl-spectcl-it/* | rust/tcl-source/* | rust/tcl-bigip-schema/* | rust/tcl-syntax/* | rust/tcl-test-support/* | \
     rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | \
     .claude/hooks/session-start.sh | .claude/skills/fetch-tcl-source/* | \
     scripts/dev/ensure-test-deps.sh | scripts/dev/tcl-reference-toolchains.sh | \
