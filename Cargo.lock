@@ -4825,6 +4825,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-explorer-it"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-dialect",
+ "tcl-explorer",
+ "tcl-lexer",
+ "tcl-registry",
+]
+
+[[package]]
 name = "tcl-expr"
 version = "0.1.0"
 dependencies = [

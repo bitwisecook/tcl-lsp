@@ -102,6 +102,7 @@ members = [
     "rust/tcl-lsp-db-it",
     "rust/tcl-lsp-server",
     "rust/tcl-explorer",
+    "rust/tcl-explorer-it",
     "rust/tcl-spec-studio",
     "rust/tcl-spec-studio-it",
     "rust/tcl-cli-support",

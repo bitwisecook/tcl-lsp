@@ -75,3 +75,4 @@ tcl-bigip-query	lib	0	Fallback disabled.
 tcl-bigip-query	integration	8	Fallback disabled; failures confirmed individually.
 tcl-bigip-query	x509_only	0	Fallback disabled.
 tcl-diagram	lib	34	Fallback disabled; failures confirmed individually.
+tcl-explorer	lib	113	Fallback disabled; failures confirmed individually.

@@ -37,6 +37,7 @@ rust/tcl-engine-tclvm
 rust/tcl-engine-tclvm-it
 rust/tcl-engine-wasm
 rust/tcl-explorer
+rust/tcl-explorer-it
 rust/tcl-expr
 rust/tcl-f5mku
 rust/tcl-fuzz

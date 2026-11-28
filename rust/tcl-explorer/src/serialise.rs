@@ -26,8 +26,6 @@
 use serde_json::{Map, Value, json};
 
 #[cfg(test)]
-use tcl_compiler::cfg::Terminator;
-#[cfg(test)]
 use tcl_compiler::executable_ir::InvocationResolution;
 use tcl_compiler::executable_ir::OwnedInvocationResolutionUnresolved;
 use tcl_compiler::gvn::{
@@ -37,8 +35,6 @@ use tcl_compiler::gvn::{
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
 use tcl_compiler::optimiser::{apply_optimisations, find_dead_stores, optimise_unit};
 use tcl_compiler::semantic_optimisation::SemanticOptimisationConfig;
-#[cfg(test)]
-use tcl_compiler::semantic_optimisation::SemanticOptimisationPassId;
 use tcl_compiler::shimmer::{
     find_byte_array_warnings_for_cu, find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu,
 };
@@ -66,8 +62,6 @@ mod wasm;
 mod world_ssa;
 
 use annotations::serialise_annotations;
-#[cfg(test)]
-use cfg::{block_successors, terminator_dict};
 pub use cfg::{
     serialise_cfg_post_ssa, serialise_cfg_pre_ssa, serialise_dominators, serialise_loops,
 };
@@ -558,9 +552,3 @@ pub fn serialise_result_with_optimisations(
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod original_configured_index_tests;
-
-#[cfg(test)]
-mod retained_explorer_source_tests;

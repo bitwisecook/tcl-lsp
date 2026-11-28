@@ -376,9 +376,6 @@ pub fn build_view(view: &str, data: &Value) -> Vec<ViewNode> {
 mod tests;
 
 #[cfg(test)]
-mod original_configured_completeness_tests;
-
-#[cfg(test)]
 mod retained_source_view_tests;
 
 #[cfg(test)]

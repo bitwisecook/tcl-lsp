@@ -16,13 +16,17 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::*;
+use tcl_explorer::{run_pipeline, serialise_result};
+
+mod support;
+
 #[test]
 fn original_structural_completeness_keeps_module_input_and_unknown_null() {
+    support::install_surfaces();
     // naming.source.original-configured-script-completeness
     // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
     // Explorer source display; fixed C9 structural indexes remain separate.
-    let mut result = crate::run_pipeline("set x ${a{}", "tcl9.1");
+    let mut result = run_pipeline("set x ${a{}", "tcl9.1");
     result.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
     assert_eq!(
         serialise_result(&result)["structuralIndex"]["scriptComplete"],
@@ -35,7 +39,7 @@ fn original_structural_completeness_keeps_module_input_and_unknown_null() {
     );
     result.source.push_str("foreign");
     assert!(serialise_result(&result)["structuralIndex"]["scriptComplete"].is_null());
-    let mut jim = crate::run_pipeline("set x 1", "jim");
+    let mut jim = run_pipeline("set x 1", "jim");
     jim.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
     assert!(serialise_result(&jim)["structuralIndex"]["scriptComplete"].is_null());
 }

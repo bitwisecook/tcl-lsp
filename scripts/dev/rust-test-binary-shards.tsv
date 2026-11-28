@@ -258,3 +258,15 @@
 4	tcl-diagram-it::data	test	tcl-diagram-it	data
 4	tcl-diagram-it::graph	test	tcl-diagram-it	graph
 4	tcl-diagram-it::original_source	test	tcl-diagram-it	original_source
+4	tcl-explorer-it::asm	test	tcl-explorer-it	asm
+4	tcl-explorer-it::meta	test	tcl-explorer-it	meta
+4	tcl-explorer-it::original_completeness	test	tcl-explorer-it	original_completeness
+4	tcl-explorer-it::original_configured_index	test	tcl-explorer-it	original_configured_index
+4	tcl-explorer-it::pipeline	test	tcl-explorer-it	pipeline
+4	tcl-explorer-it::pipeline_contracts	test	tcl-explorer-it	pipeline_contracts
+4	tcl-explorer-it::render	test	tcl-explorer-it	render
+4	tcl-explorer-it::retained_public	test	tcl-explorer-it	retained_public
+4	tcl-explorer-it::serialise	test	tcl-explorer-it	serialise
+4	tcl-explorer-it::snapshots	test	tcl-explorer-it	snapshots
+4	tcl-explorer-it::view_tree	test	tcl-explorer-it	view_tree
+4	tcl-explorer-it::wasm	test	tcl-explorer-it	wasm
