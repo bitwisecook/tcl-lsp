@@ -80,7 +80,6 @@
 3	tcl-compiler::native_arithmetic_conformance	test	tcl-compiler	native_arithmetic_conformance
 3	tcl-compiler::semantic_identity_answer	test	tcl-compiler	semantic_identity_answer
 3	tcl-cshim	lib	tcl-cshim	tcl_cshim
-3	tcl-cshim::pkga_e2e	test	tcl-cshim	pkga_e2e
 3	tcl-engine-tclvm	lib	tcl-engine-tclvm	tcl_engine_tclvm
 3	tcl-explorer	lib	tcl-explorer	tcl_explorer
 3	tcl-expr	lib	tcl-expr	tcl_expr
@@ -209,7 +208,8 @@
 5	tcl-codegen::wasm_real_link	test	tcl-codegen	wasm_real_link
 5	tcl-compiler::differential_incremental	test	tcl-compiler	differential_incremental
 5	tcl-compiler::it_5	test	tcl-compiler	it_5
-5	tcl-cshim::it_5	test	tcl-cshim	it_5
+5	tcl-cshim-it	lib	tcl-cshim-it	tcl_cshim_it
+5	tcl-cshim-it::it_5	test	tcl-cshim-it	it_5
 5	tcl-dialect::model_version_set	test	tcl-dialect	model_version_set
 5	tcl-dialect::package_version_oracle	test	tcl-dialect	package_version_oracle
 5	tcl-lexer	lib	tcl-lexer	tcl_lexer

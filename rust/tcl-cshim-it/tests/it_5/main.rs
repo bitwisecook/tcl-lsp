@@ -16,12 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl-cshim` integration tests assigned to CI shard 5, one module per
-//! former test binary, linked once instead of 4 times
-//! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
-//! module; a new top-level `tests/*.rs` is a binary of its own.
+//! `tcl-cshim`'s registry-reading tests, through its public API, in one
+//! harness (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file
+//! here as a module; a new top-level `tests/*.rs` is a binary of its own.
 
 mod completion;
 mod doors_e2e;
 mod factory;
+mod pkga_e2e;
 mod sandbox_isolation;
+
+/// Installs the shipped command surfaces; every test calls it before its
+/// first registry read.
+fn install_surfaces() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
+}

@@ -54,6 +54,7 @@ unsafe extern "C" fn index_cache_init(interp: *mut InterpState) -> c_int {
 #[cfg(cshim_c_tests)]
 #[test]
 fn index_cache_retains_original_table_and_survives_command_retirement() {
+    crate::install_surfaces();
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: this linked static extension and table live for the entire process.
     unsafe { interp.load_static(index_cache_init) }.unwrap();
@@ -141,6 +142,7 @@ unsafe extern "C" fn init(interp: *mut InterpState) -> c_int {
 
 #[test]
 fn smoke_a_command_created_mid_script_is_callable_by_the_next_statement() {
+    crate::install_surfaces();
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: `init` is written against the shim's own exports.
     unsafe { interp.load_static(init) }.expect("loads");
@@ -158,6 +160,7 @@ fn smoke_a_command_created_mid_script_is_callable_by_the_next_statement() {
 
 #[test]
 fn a_command_deleted_mid_script_is_gone_for_the_next_statement() {
+    crate::install_surfaces();
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: as above.
     unsafe { interp.load_static(init) }.expect("loads");
@@ -177,6 +180,7 @@ fn a_command_deleted_mid_script_is_gone_for_the_next_statement() {
 
 #[test]
 fn a_command_may_delete_itself() {
+    crate::install_surfaces();
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: as above.
     unsafe { interp.load_static(init) }.expect("loads");
@@ -192,6 +196,7 @@ fn a_command_may_delete_itself() {
 
 #[test]
 fn script_retirement_runs_native_delete_before_unbinding_and_keeps_replacement() {
+    crate::install_surfaces();
     struct Context {
         interp: *mut InterpState,
         calls: std::cell::Cell<usize>,
@@ -304,6 +309,7 @@ unsafe extern "C" fn original_getter_init(interp: *mut InterpState) -> c_int {
 
 #[test]
 fn callback_getters_preserve_aliases_and_publish_original_failure_caches() {
+    crate::install_surfaces();
     // Native proof: naming.native-abi.original-object-callback-getters
     // docs/design/analysis/name-resolution-proofs/native-abi-original-object-callback-getters.md
     let mut interp = Interp::new(TclVmEngine::new());
@@ -387,6 +393,7 @@ unsafe extern "C" fn original_member_init(interp: *mut InterpState) -> c_int {
 
 #[test]
 fn original_string_cache_keeps_unicode_and_allocation_until_reached_conversion() {
+    crate::install_surfaces();
     use tcl_syntax::native_object::NativeObjectCacheSnapshot as Cache;
     use tcl_syntax::native_string::NativeStringProtocol;
     let mut interp = Interp::new(TclVmEngine::new());
@@ -444,6 +451,7 @@ fn original_string_cache_keeps_unicode_and_allocation_until_reached_conversion()
 
 #[test]
 fn list_members_and_original_callback_results_keep_the_same_physical_objects() {
+    crate::install_surfaces();
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: the initializer only registers the callback above.
     unsafe { interp.load_static(original_member_init) }.unwrap();
@@ -539,6 +547,7 @@ unsafe extern "C" fn retain_original_init(interp: *mut InterpState) -> c_int {
 
 #[test]
 fn retained_native_objects_refresh_cache_without_changing_identity_or_resident_pointer() {
+    crate::install_surfaces();
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: initialization and delete callback own all retained native references.
     unsafe { interp.load_static(retain_original_init) }.unwrap();
@@ -609,6 +618,7 @@ unsafe extern "C" fn native_completion_init(interp: *mut InterpState) -> c_int {
 
 #[test]
 fn native_completion_preserves_raw_codes_options_and_new_object_aliases() {
+    crate::install_surfaces();
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: the initializer only registers linked static callbacks.
     unsafe { interp.load_static(native_completion_init) }.unwrap();

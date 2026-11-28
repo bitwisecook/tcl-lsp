@@ -1,0 +1,57 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "tcl-cshim-it"
+publish.workspace = true
+description = "tcl-cshim's tests that read the command registry; no library code"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+build = "build.rs"
+
+[dependencies]
+
+[dev-dependencies]
+tcl-cshim = { path = "../tcl-cshim" }
+tcl-core-types = { path = "../tcl-core-types" }
+tcl-dialect = { path = "../tcl-dialect" }
+tcl-engine-api = { path = "../tcl-engine-api" }
+tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
+tcl-native-model = { path = "../tcl-native-model" }
+# Installs the shipped command surfaces before the first registry read.
+tcl-registry = { path = "../tcl-registry" }
+tcl-spec-hooks = { path = "../tcl-spec-hooks" }
+tcl-syntax = { path = "../tcl-syntax" }
+tcl-vm = { path = "../tcl-vm" }
+
+# NOTE: no `[lints] workspace = true` — its tests declare and
+# define C ABI functions, as `tcl-cshim` itself does, so it cannot inherit
+# `unsafe_code = "forbid"`. The remaining workspace lint settings are
+# replicated verbatim so the crate is held to the same clippy bar.
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(tokio_unstable)", "cfg(tokio_taskdump)"] }
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

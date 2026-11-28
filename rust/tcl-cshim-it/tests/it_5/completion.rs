@@ -85,6 +85,7 @@ fn script_error(message: &str) -> EngineError {
 
 #[test]
 fn a_tcl_break_ends_the_loop_the_command_is_in() {
+    crate::install_surfaces();
     let mut interp = interp();
     assert_eq!(
         run(
@@ -97,6 +98,7 @@ fn a_tcl_break_ends_the_loop_the_command_is_in() {
 
 #[test]
 fn a_tcl_continue_goes_on_to_the_next_iteration() {
+    crate::install_surfaces();
     let mut interp = interp();
     assert_eq!(
         run(
@@ -109,6 +111,7 @@ fn a_tcl_continue_goes_on_to_the_next_iteration() {
 
 #[test]
 fn a_tcl_return_returns_from_the_procedure_that_called_it() {
+    crate::install_surfaces();
     let mut interp = interp();
     assert_eq!(
         run(&mut interp, "proc p {} { completes 2; return nope }; p"),
@@ -119,6 +122,7 @@ fn a_tcl_return_returns_from_the_procedure_that_called_it() {
 
 #[test]
 fn a_tcl_ok_leaves_the_loop_alone() {
+    crate::install_surfaces();
     let mut interp = interp();
     assert_eq!(
         run(
@@ -131,6 +135,7 @@ fn a_tcl_ok_leaves_the_loop_alone() {
 
 #[test]
 fn a_break_or_a_continue_outside_a_loop_is_what_tcl_says_of_it() {
+    crate::install_surfaces();
     let mut interp = interp();
     assert_eq!(
         run(&mut interp, "completes 3"),
@@ -144,6 +149,7 @@ fn a_break_or_a_continue_outside_a_loop_is_what_tcl_says_of_it() {
 
 #[test]
 fn a_code_of_the_commands_own_reaches_the_catch_that_reports_it() {
+    crate::install_surfaces();
     let mut interp = interp();
     assert_eq!(
         run(&mut interp, "list [catch {completes 9} m] $m"),

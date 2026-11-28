@@ -52,11 +52,6 @@ tcl-native-model = { path = "../tcl-native-model" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
 
-[dev-dependencies]
-tcl-vm = { path = "../tcl-vm" }
-tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
-tcl-spec-hooks = { path = "../tcl-spec-hooks" }
-
 [build-dependencies]
 # Compiles the test extension under `tests/c/` on non-Windows targets; see
 # `build.rs` for the gating.

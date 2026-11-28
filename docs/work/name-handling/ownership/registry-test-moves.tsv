@@ -2,8 +2,6 @@
 # A count includes the tests that then fail on the poisoned registry cache mutex: they read the registry too. A test target with no such test has no row.
 # Surveyed 28 November 2026 with no such test: tcl-names, tcl-pkg, tcl-bigip-io, tcl-engine-wasm, runtime/rust (its interpreter construction installs the shipped list).
 crate	target	count	note
-tcl-cshim	it_5	22	22 direct, 0 via the poisoned cache
-tcl-cshim	pkga_e2e	11	11 direct, 0 via the poisoned cache
 f5-xc	lib	15	1 direct, 14 via the poisoned cache
 f5-xc	differential	1	1 direct, 0 via the poisoned cache
 f5-xc	model	26	1 direct, 25 via the poisoned cache

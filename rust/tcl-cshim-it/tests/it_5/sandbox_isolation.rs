@@ -85,6 +85,7 @@ fn run_pack(source: &str) -> (Result<(), PackEvalFailure>, Vec<String>) {
 
 #[test]
 fn smoke_a_pack_program_cannot_load_or_reach_a_shimmed_command() {
+    crate::install_surfaces();
     let _host = host_interp();
 
     let (outcome, unresolved) = run_pack("load ./libpkga.so Pkga\n");
@@ -108,6 +109,7 @@ fn smoke_a_pack_program_cannot_load_or_reach_a_shimmed_command() {
 
 #[test]
 fn a_hook_body_cannot_reach_a_shimmed_command_either() {
+    crate::install_surfaces();
     let _host = host_interp();
 
     // A hook engine as the hook host builds one: fresh, whitelisted.
@@ -138,6 +140,7 @@ fn a_hook_body_cannot_reach_a_shimmed_command_either() {
 
 #[test]
 fn only_the_interpreter_that_loaded_the_extension_has_it() {
+    crate::install_surfaces();
     let _host = host_interp();
     let mut other = Interp::new(TclVmEngine::new());
     let error = other

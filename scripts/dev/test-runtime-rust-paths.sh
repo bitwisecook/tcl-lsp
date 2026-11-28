@@ -120,7 +120,7 @@ expect_unrelated samples/tcl9_smoke/README.md
 expect_unrelated samples/tcl9_smoke/eval/notes.txt
 expect_unrelated docs/design/compiler/wasm-native-lowering.md
 expect_unrelated rust/tcl-cshim/tests/c/doors.c
-expect_unrelated rust/tcl-cshim/tests/pkga_e2e.rs
+expect_unrelated rust/tcl-cshim-it/tests/it_5/pkga_e2e.rs
 expect_unrelated editors/vscode/src/extension.ts
 
 # A malformed request must fail closed (status 2), not answer "unrelated":

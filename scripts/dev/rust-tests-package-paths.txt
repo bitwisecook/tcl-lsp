@@ -27,6 +27,7 @@ rust/tcl-compiler
 rust/tcl-compiler-it
 rust/tcl-core-types
 rust/tcl-cshim
+rust/tcl-cshim-it
 rust/tcl-debugger
 rust/tcl-diagram
 rust/tcl-dialect

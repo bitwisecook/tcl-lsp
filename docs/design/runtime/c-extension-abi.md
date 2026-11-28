@@ -299,7 +299,7 @@ fails at run time. The host is the compilation target (wasm32 is the WASM leg,
 anything else the native one) unless the build names one with
 `-DTCL_HOST_NATIVE` or `-DTCL_HOST_WASM`; naming both declares both, which
 checks a source against the header and names no host, since none implements the
-union. `rust/tcl-cshim/tests/pkga_e2e.rs`'s expectations, captured against
+union. `rust/tcl-cshim-it/tests/it_5/pkga_e2e.rs`'s expectations, captured against
 Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors.
 
 Both legs declare what the test extension `tests/c/pkga.c` calls: command

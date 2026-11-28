@@ -81,6 +81,7 @@ members = [
     "rust/tcl-spec-hooks",
     "rust/tcl-spec-hooks-it",
     "rust/tcl-cshim",
+    "rust/tcl-cshim-it",
     "rust/bpf-tcl-ir",
     "rust/bpf-tcl-codegen",
     "rust/bpf-tcl-codegen-it",

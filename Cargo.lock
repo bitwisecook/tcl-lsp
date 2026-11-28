@@ -4689,6 +4689,19 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-engine-api",
+ "tcl-native-model",
+ "tcl-registry",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-cshim-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
+ "tcl-cshim",
+ "tcl-dialect",
+ "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-native-model",
  "tcl-registry",

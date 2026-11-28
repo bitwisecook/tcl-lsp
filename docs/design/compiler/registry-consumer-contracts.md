@@ -524,7 +524,7 @@ authored header's (`TCL_MAJOR_VERSION=8`). In the code,
 `rust/tcl-cshim/src/obj.rs` publishes the `Tcl_Obj` layout; `rust/tcl-cshim/src/doors.rs` implements `Tcl_GetVar2Ex`,
 `Tcl_ObjSetVar2`, `Tcl_UnsetVar2` and `Tcl_EvalObjEx` over the engine interface's
 variable door and in-invocation eval door;
-`rust/tcl-cshim/tests/pkga_e2e.rs`'s byte-for-byte expectations, captured
+`rust/tcl-cshim-it/tests/it_5/pkga_e2e.rs`'s byte-for-byte expectations, captured
 against Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors for
 both legs.
 
@@ -2487,7 +2487,7 @@ flowchart LR
 - `rust/tcl-spectcl/tests/it_4/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs` — `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, the per-token guard contract in each runtime
 - `rust/tcl-codegen/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime, and `a_module_with_a_foreign_intrinsic_table_is_refused`, the link check against the runtime's own `tcl_runtime_identity`
-- `rust/tcl-cshim/tests/it_5/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
+- `rust/tcl-cshim-it/tests/it_5/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, the gate the argument-role hook body keeps
 - `rust/tcl-spec-studio/tests/it_3/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, over the two ports and every grammar-carrying command's round trip
@@ -2497,7 +2497,7 @@ flowchart LR
 - `rust/tcl-registry/tests/it_5/tcl91_dialect.rs` — the availability of `subst`'s positive option family
 - `rust/tcl-compiler/tests/it_4/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
-- `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs, `the_loaded_report_bridges_to_the_default_fact`, the shim's report declared at the extension default, and `load_through_the_host_bridge_defines_the_commands` with `the_same_vectors_run_through_the_host_load_bridge`, the host's `load`
+- `rust/tcl-cshim-it/tests/it_5/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs, `the_loaded_report_bridges_to_the_default_fact`, the shim's report declared at the extension default, and `load_through_the_host_bridge_defines_the_commands` with `the_same_vectors_run_through_the_host_load_bridge`, the host's `load`
 - `rust/tcl-spectcl/tests/it_2/i6_security_floor.rs` — the floor and its take-shipped extension
 - `rust/tcl-spectcl/tests/it_5/codegen_stamps.rs` — rung 3: `a_tcl_body_backed_command_is_inlined_and_admitted`, `a_host_native_backing_never_defines_a_proc` and `a_pack_text_body_that_diverges_turns_the_site_plain`; `rust/tcl-cli/tests/it_5/spec_verbs.rs` — `spec_test_reports_an_arity_divergence` and the verb's other rows
 - `rust/tcl-spectcl/tests/it_3/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`

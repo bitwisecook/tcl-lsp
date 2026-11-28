@@ -523,6 +523,7 @@ const DIVERGENCES: &[(&str, i64, &str, &str, &str, &str)] = &[];
 
 #[test]
 fn every_call_answers_what_c_tcl_answers() {
+    crate::install_surfaces();
     let mut differ = Vec::new();
     for &(script, code, result, error_code) in CASES {
         let wanted = (code, result.to_owned(), error_code.to_owned());
@@ -542,6 +543,7 @@ fn every_call_answers_what_c_tcl_answers() {
 
 #[test]
 fn where_the_error_code_differs_from_c_tcl_the_difference_is_the_recorded_one() {
+    crate::install_surfaces();
     for &(script, code, result, c_tcl, here, why) in DIVERGENCES {
         assert_ne!(here, c_tcl, "{script}: not a divergence");
         assert_eq!(
@@ -556,6 +558,7 @@ fn where_the_error_code_differs_from_c_tcl_the_difference_is_the_recorded_one() 
 /// properties that need more than one call or more than the answer.
 #[test]
 fn the_entry_point_reaches_the_frame_that_loaded_it_through_the_hosts_load() {
+    crate::install_surfaces();
     static TABLE: &[(&str, InitProc)] = &[("Doors", doors_init)];
     let mut interp = Interp::new(TclVmEngine::new());
     // SAFETY: `Doors_Init` is the test extension built against the shim header.
@@ -591,6 +594,7 @@ fn run(interp: &mut Interp<TclVmEngine>, script: &str) -> Result<String, EngineE
 
 #[test]
 fn a_budget_a_command_swallows_still_fails_the_invocation() {
+    crate::install_surfaces();
     let script = "doors_try {foreach i {1 2 3 4 5 6 7 8 9 10 11 12} {doors_peek i}}";
     let mut interp = loaded();
     interp

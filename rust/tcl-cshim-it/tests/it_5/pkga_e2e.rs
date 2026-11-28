@@ -107,6 +107,7 @@ fn catching(interp: &mut Interp<TclVmEngine>, script: &str) -> (i64, String, Str
 /// is the one the shell would answer to.
 #[test]
 fn the_loaded_report_bridges_to_the_default_fact() {
+    crate::install_surfaces();
     use tcl_registry::{CommandSpec, Traits};
 
     let mut interp = Interp::new(TclVmEngine::new());
@@ -156,6 +157,7 @@ fn the_loaded_report_bridges_to_the_default_fact() {
 
 #[test]
 fn smoke_pkga_round_trips_through_the_vm() {
+    crate::install_surfaces();
     let mut interp = loaded();
     assert_eq!(
         catching(&mut interp, "pkga_eq abc abc"),
@@ -167,7 +169,7 @@ fn smoke_pkga_round_trips_through_the_vm() {
     );
 }
 
-include!("vectors/pkga.rs");
+include!("../../../tcl-cshim/tests/vectors/pkga.rs");
 
 fn check_cases(interp: &mut Interp<TclVmEngine>) {
     for &(script, code, result, error_code) in CASES {
@@ -181,6 +183,7 @@ fn check_cases(interp: &mut Interp<TclVmEngine>) {
 
 #[test]
 fn results_and_errors_match_c_tcl_byte_for_byte() {
+    crate::install_surfaces();
     check_cases(&mut loaded());
 }
 
@@ -190,6 +193,7 @@ fn results_and_errors_match_c_tcl_byte_for_byte() {
 /// Tcl would guess from it is what reaches the table.
 #[test]
 fn the_same_vectors_run_through_the_host_load_bridge() {
+    crate::install_surfaces();
     let mut interp = bridged();
     assert_eq!(
         catching(
@@ -206,6 +210,7 @@ fn the_same_vectors_run_through_the_host_load_bridge() {
 /// hold is `couldn't load`, and a prefix loads once.
 #[test]
 fn load_through_the_host_bridge_defines_the_commands() {
+    crate::install_surfaces();
     // Without the host's opt-in there is no `load` for a script to call.
     let mut bare = Interp::new(TclVmEngine::new());
     assert_eq!(
@@ -285,6 +290,7 @@ fn load_through_the_host_bridge_defines_the_commands() {
 /// the other way a host opts in.
 #[test]
 fn the_bundled_extension_loads_through_a_command_a_host_registers_itself() {
+    crate::install_surfaces();
     use std::rc::Rc;
 
     use tcl_engine_api::{CompileUnit, Engine};
@@ -315,6 +321,7 @@ fn the_bundled_extension_loads_through_a_command_a_host_registers_itself() {
 /// given.
 #[test]
 fn a_package_whose_ifneeded_script_is_a_plain_load_is_required_twice() {
+    crate::install_surfaces();
     let mut interp = bridged();
     let extension = interp
         .eval("info sharedlibextension")
@@ -383,6 +390,7 @@ fn a_package_whose_ifneeded_script_is_a_plain_load_is_required_twice() {
 /// file "…": …`; nothing is provided and nothing is listed as loaded.
 #[test]
 fn an_ifneeded_script_whose_load_the_table_refuses_leaves_the_require_an_error() {
+    crate::install_surfaces();
     let mut interp = bridged();
     interp
         .eval("package ifneeded pkgz 1.0 {load /opt/pkgz/libpkgz.so Pkgz}")
@@ -409,6 +417,7 @@ fn an_ifneeded_script_whose_load_the_table_refuses_leaves_the_require_an_error()
 /// it, so nothing the extension would have defined exists.
 #[test]
 fn a_package_provided_at_another_version_fails_the_entry_point_before_it_registers_anything() {
+    crate::install_surfaces();
     let mut interp = bridged();
     interp
         .eval("package provide pkga 2.0")
@@ -444,6 +453,7 @@ fn a_package_provided_at_another_version_fails_the_entry_point_before_it_registe
 
 #[test]
 fn client_data_and_delete_procs_work_across_calls() {
+    crate::install_surfaces();
     let mut interp = loaded();
     // The counter is a C static shared by every interpreter in the process,
     // so only the increment between two calls is this test's to assert.
@@ -487,6 +497,7 @@ fn client_data_and_delete_procs_work_across_calls() {
 
 #[test]
 fn provided_packages_are_recorded_shim_side() {
+    crate::install_surfaces();
     let interp = loaded();
     assert_eq!(
         interp.provided_packages(),
