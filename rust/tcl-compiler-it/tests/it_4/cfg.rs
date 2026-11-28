@@ -136,6 +136,7 @@ fn assigns_const_reachable(func: &Function, name: &str) -> bool {
 
 #[test]
 fn linear_script_cfg() {
+    crate::install_surfaces();
     // `set a 1\nset b 2` — the entry block holds both AssignConst statements and
     // ends with a Goto (to the synthetic trailing exit block). STRUCTURAL.
     let module = cfg("set a 1\nset b 2");
@@ -148,6 +149,7 @@ fn linear_script_cfg() {
 
 #[test]
 fn if_creates_branching_cfg() {
+    crate::install_surfaces();
     // An if/else creates a block ending in a Branch, and the post-if `set z 1`
     // survives somewhere in the CFG. STRUCTURAL (which blocks branch is a
     // property of the lowering).
@@ -166,6 +168,7 @@ fn if_creates_branching_cfg() {
 
 #[test]
 fn switch_creates_dispatch_branches() {
+    crate::install_surfaces();
     // A non-fallthrough EXACT switch is expanded (not opaque) into a dispatch
     // chain — one Branch per arm — so ≥2 blocks end in a Branch. STRUCTURAL (the
     // exact/expanded vs. glob/regexp/fallthrough/opaque split is a CFG-builder
@@ -186,6 +189,7 @@ fn switch_creates_dispatch_branches() {
 
 #[test]
 fn switch_subject_a_release_may_read_as_an_option_stays_opaque() {
+    crate::install_surfaces();
     // `build_cfg` names no dialect, so it builds under the lenient `tcl` profile,
     // which declares no release. Before 8.5 `switch` reads every leading word
     // that starts with `-` as an option, so a variable subject with no `--`
@@ -211,6 +215,7 @@ fn switch_subject_a_release_may_read_as_an_option_stays_opaque() {
 
 #[test]
 fn switch_fallthrough_stays_opaque() {
+    crate::install_surfaces();
     // An exact switch with a fall-through arm (`b - default`) cannot be expressed
     // as structured control flow, so it is kept OPAQUE — a single
     // `Statement::Switch` in the block. STRUCTURAL. `$x` is bound first: tclsh
@@ -231,6 +236,7 @@ fn switch_fallthrough_stays_opaque() {
 
 #[test]
 fn for_creates_loop_cfg() {
+    crate::install_surfaces();
     // A `for` lowers to a loop with a `for_header` block that branches on the
     // loop condition, true/false targets both present, and the false (exit)
     // target recorded as a loop node.
@@ -316,6 +322,7 @@ fn for_header_condition(func: &Function) -> String {
 
 #[test]
 fn for_rotation_requires_a_non_stale_constant_init() {
+    crate::install_surfaces();
     // Loop rotation (bottom-testing a provably-once loop) is sound only when the
     // init clause proves the condition true on entry. `for_runs_at_least_once`
     // processes the init in order, so a later non-constant write, an `incr`, or
@@ -382,6 +389,7 @@ fn for_rotation_requires_a_non_stale_constant_init() {
 
 #[test]
 fn return_terminates_block() {
+    crate::install_surfaces();
     // In a proc whose body is `set x 1; return $x; set y 2`, some block ends in a
     // Return, and the dead `set y 2` after the return is NOT reachable in the CFG.
     //
@@ -444,6 +452,7 @@ const BRANCHY: &str = "proc f {x} {\n    set total 0\n    for {set i 0} {$i < $x
 
 #[test]
 fn disjoint_spans_share_lane_zero() {
+    crate::install_surfaces();
     // Sequential non-overlapping spans all nest into the innermost lane.
     // STRUCTURAL (pure algorithm).
     assert_eq!(assign_lanes(&[(0, 1), (2, 3), (4, 5)]), vec![0, 0, 0]);
@@ -451,6 +460,7 @@ fn disjoint_spans_share_lane_zero() {
 
 #[test]
 fn touching_endpoints_force_distinct_lanes() {
+    crate::install_surfaces();
     // An edge into block 2 and an edge out of block 2 must not share a lane
     // (closed intervals).
     assert_eq!(assign_lanes(&[(0, 2), (2, 4)]), vec![0, 1]);
@@ -458,6 +468,7 @@ fn touching_endpoints_force_distinct_lanes() {
 
 #[test]
 fn shortest_span_gets_innermost_lane() {
+    crate::install_surfaces();
     // The longest span is processed last → outer lane, so the shorter span gets
     // the inner lane.
     let lanes = assign_lanes(&[(0, 5), (1, 2)]);
@@ -469,6 +480,7 @@ fn shortest_span_gets_innermost_lane() {
 
 #[test]
 fn empty_spans_assign_no_lanes() {
+    crate::install_surfaces();
     // Empty input → no lanes (the degenerate case the property test's random
     // span count never hits but the contract still requires).
     assert_eq!(assign_lanes(&[]), Vec::<usize>::new());
@@ -476,6 +488,7 @@ fn empty_spans_assign_no_lanes() {
 
 #[test]
 fn no_two_same_lane_edges_overlap() {
+    crate::install_surfaces();
     // A randomised property check — for 500 random span sets, no two spans
     // sharing a lane overlap. Uses a DETERMINISTIC PRNG seeded by a constant (no
     // time/thread entropy) so the run is reproducible; the contract is invariant
@@ -513,6 +526,7 @@ fn no_two_same_lane_edges_overlap() {
 
 #[test]
 fn branch_kinds_and_lanes() {
+    crate::install_surfaces();
     // The loop header is a conditional branch, so its outgoing edges include one
     // True and one False edge; every edge is routed (a lane is assigned) and no
     // two same-lane edges overlap. (`build_cfg_edges` takes an explicit block
@@ -558,6 +572,7 @@ fn branch_kinds_and_lanes() {
 
 #[test]
 fn edge_kinds_classified_goto_true_false() {
+    crate::install_surfaces();
     // Edge-kind classification (the routing model's other half): a Goto-only
     // function yields only Goto edges; the branchy function yields ≥1 True and
     // ≥1 False edge. The kind contract: `kind` ∈ {goto,true,false}. STRUCTURAL.
@@ -595,6 +610,7 @@ fn edge_kinds_classified_goto_true_false() {
 
 #[test]
 fn block_ordering_follows_creation_order() {
+    crate::install_surfaces();
     // `ordered_block_names` recovers the block CREATION order (the order the
     // explorer renders in) by sorting on the trailing `_<n>` counter. For a
     // simple `if`, the entry block (lowest counter) comes first and every named
@@ -655,6 +671,7 @@ fn block_ordering_follows_creation_order() {
 
 #[test]
 fn codegen_for_loop_is_header_tested() {
+    crate::install_surfaces();
     let module = build_cfg_codegen(
         &lower_to_ir("for {set i 0} {$i < 3} {incr i} {set sum 1}", registry()),
         false,
@@ -801,6 +818,7 @@ fn cfg_shape(func: &Function) -> CfgShape {
 /// pack command without the grammar stays one opaque call.
 #[test]
 fn a_try_handler_walk_reads_timing_not_keywords() {
+    crate::install_surfaces();
     let packs = attempt_pack(ATTEMPT_GRAMMAR);
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs(TCL, &packs);
     let respelt = "attempt {set a 1} upon ok {r o} - catching {POSIX ENOENT} {m o} {set b 2} \
@@ -905,6 +923,7 @@ fn blocks_named(func: &Function, prefix: &str) -> Vec<String> {
 /// inline emitter compiles, so the bytecode it makes is as it was.
 #[test]
 fn a_flattened_catch_body_ends_a_block_at_each_statement() {
+    crate::install_surfaces();
     let source = "proc p {} {\n set x 1\n catch {set x 2; incr x; set y 3} m\n return $x\n}\n";
     let module = cfg(source);
     let func = proc(&module, "::p");
@@ -996,6 +1015,7 @@ fn a_flattened_catch_body_ends_a_block_at_each_statement() {
 /// words are its own: no region ends, and no words are kept beside one.
 #[test]
 fn an_opaque_catch_keeps_no_words_beside_a_marker() {
+    crate::install_surfaces();
     let source = "proc p {} {\n catch {error boom} m\n return $m\n}\n\
                   proc q {} {\n catch {catch {set x 1}} m\n return $m\n}\n\
                   catch {set x 1} m\n";
@@ -1011,6 +1031,7 @@ fn an_opaque_catch_keeps_no_words_beside_a_marker() {
 /// command does. A body that cannot fall through has no such edge.
 #[test]
 fn a_try_body_is_thrown_to_from_the_block_before_it() {
+    crate::install_surfaces();
     let source = "proc p {} {\n set x 1\n try {set x 2} on error {} {set x 3}\n return $x\n}\n\
                   proc q {} {\n try {error boom} on error {} {set x 3}\n}\n";
     let module = cfg(source);
@@ -1047,6 +1068,7 @@ fn a_try_body_is_thrown_to_from_the_block_before_it() {
 /// `set x 1` along the `break` path (found in review).
 #[test]
 fn a_jump_resumed_after_a_finally_skips_the_code_after_the_try() {
+    crate::install_surfaces();
     for src in [
         "proc p {} {\n    while 1 {\n        try {break} finally {}\n        set x 1\n    }\n    return $x\n}\n",
         "proc p {} {\n    while 1 {\n        try { try {break} finally {} } finally {}\n        set x 1\n    }\n    return $x\n}\n",
@@ -1092,6 +1114,7 @@ fn a_jump_resumed_after_a_finally_skips_the_code_after_the_try() {
 /// (found in review).
 #[test]
 fn a_break_a_nested_catch_swallows_is_not_routed_to_an_outer_handler() {
+    crate::install_surfaces();
     let module = cfg(
         "proc p {} {\n    while 1 {\n        try {catch {break}; return} on break {} {unset y}\n        break\n    }\n}\n",
     );

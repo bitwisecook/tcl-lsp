@@ -27,6 +27,7 @@ use super::*;
 /// them, and each program prints the same afterwards.
 #[test]
 fn a_store_a_nested_write_overwrites_unread_is_still_dead() {
+    crate::install_surfaces();
     let overwritten = "proc p {} {\n set x 1\n puts [set x 2]\n return $x\n}\nputs [p]\n";
     let loop_variable = "proc p {fd} {\n set line {}\n set n 0\n \
                          while {[gets $fd line] >= 0} {incr n}\n return $n\n}\n\
@@ -241,6 +242,7 @@ const NESTED_WRITE_PROGRAMS: &[(&str, &str)] = &[
 /// unbraced, a place the write creates, and a value that is not an integer.
 #[test]
 fn a_nested_write_in_a_host_prints_what_tclsh_prints() {
+    crate::install_surfaces();
     for &(source, expected) in NESTED_WRITE_PROGRAMS {
         prints_under_every_release(source, expected);
     }
@@ -254,6 +256,7 @@ fn a_nested_write_in_a_host_prints_what_tclsh_prints() {
 /// optimiser, and the values the lattice holds are the ones printed.
 #[test]
 fn a_command_substitution_lands_its_writes_beside_its_result() {
+    crate::install_surfaces();
     type Program = (
         &'static str,
         &'static str,
@@ -336,6 +339,7 @@ const ORDERED_STATE: [(&str, &str, &str); 6] = [
 /// call, `x` is unknown, and nothing forwards the earlier value to the read.
 #[test]
 fn the_seven_ordered_state_witnesses() {
+    crate::install_surfaces();
     for (expression, value, after) in ORDERED_STATE {
         let int = |text: &str| Some(LatticeValue::Const(ConstValue::int(text.parse().unwrap())));
         let top = format!("set x 1\nset r [expr {expression}]\nputs $r\nputs $x\n");
@@ -439,6 +443,7 @@ fn the_seven_ordered_state_witnesses() {
 /// is no iRule, so they run under the core Tcl dialects.
 #[test]
 fn a_nested_write_outside_the_state_declines() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc p {} {\n set x 1\n set r [expr {$x + [set ::g 10]}]\n puts \"$r $::g\"\n}\np\n",
@@ -732,6 +737,7 @@ pub(super) enum Claim {
 /// proves no such thing, and the places it may write hold no value.
 #[test]
 fn the_prefix_rule_holds_in_both_builds() {
+    crate::install_surfaces();
     for program in &PREFIX_PROGRAMS {
         let (top, in_proc, handled, split) = (
             program.at_the_top_level(),

@@ -24,8 +24,8 @@ export TCL_LSP_REQUIRE_ALL_TCL_ORACLES=1
 export TCL_LSP_REQUIRE_JIM_ORACLE=1
 cargo test -p tcl-test-support
 cargo test -p tcl-syntax --test command_resolution_conformance --test variable_resolution_conformance --test namespace_op_conformance --test jim_name_resolution_conformance --test execution_resolution_conformance --test body_execution_conformance
-cargo test -p tcl-compiler --test resolution_rewrite_oracles --test native_arithmetic_conformance
-cargo test -p tcl-codegen --test codegen_integration
+cargo test -p tcl-compiler-it --test resolution_rewrite_oracles --test native_arithmetic_conformance
+cargo test -p tcl-codegen-it --test codegen_integration
 cargo test -p tcl-vm-it --test native_compilation_conformance --test cross_interp_alias_e2e --test legacy_variable_traces_e2e --test command_traces_e2e --test step_trace_inline_e2e --test variable_name_resolution_e2e --test variable_trace_semantics_e2e --test element_recovery_traces_e2e
 cargo test -p tcl-registry --test dialect_oracle --test package_protocol_oracle
 cargo test -p tcl-dialect --test package_version_oracle

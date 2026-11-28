@@ -3831,7 +3831,7 @@ its citation and a regression that reads the recorded lines.
       colour has to go.
 17. **A source literal read numerically after another command read it.** Not
     a naming question; the optimiser's (`expr_operand_literal_reading` in
-    `rust/tcl-compiler/tests/it_5/optimiser_coverage/constant_folding.rs`).
+    `rust/tcl-compiler-it/tests/it_5/optimiser_coverage/constant_folding.rs`).
     On every tclsh from 8.4.20 to 9.1.0 the numeric reading of a variable
     holding a source literal follows its string whatever read the shared
     object first, so the optimiser folds `$a` into an expression there. F5

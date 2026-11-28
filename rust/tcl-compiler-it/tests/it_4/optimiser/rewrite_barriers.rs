@@ -30,6 +30,7 @@ use super::*;
 // `set acc {a b}` (O130) walks straight past the dynamic write.
 #[test]
 fn dynamic_name_write_blocks_o130_chain_fold_issue_1374() {
+    crate::install_surfaces();
     let src =
         "proc f {name} { set acc {}; lappend acc a; set $name zzz; lappend acc b; return $acc }";
     assert!(!opt_fires(src, TCL, "O130"));
@@ -42,6 +43,7 @@ fn dynamic_name_write_blocks_o130_chain_fold_issue_1374() {
 // rewrite `x`.
 #[test]
 fn dynamic_name_write_blocks_o102_forwarding_issue_1374() {
+    crate::install_surfaces();
     let src = "proc f {name} { set x 1; set $name 2; puts $x }";
     assert!(!opt_fires(src, TCL, "O102"));
     assert!(!opt_fires(src, TCL, "O100"));
@@ -53,6 +55,7 @@ fn dynamic_name_write_blocks_o102_forwarding_issue_1374() {
 // the dynamic write into the branch (O125) makes it print `hello`.
 #[test]
 fn dynamic_name_write_blocks_o125_sinking_issue_1374() {
+    crate::install_surfaces();
     let src = "proc f {name c} { set flag hello; if {$c} { set $name zzz; puts $flag } }";
     assert!(!opt_fires(src, TCL, "O125"));
     assert_eq!(optimised(src, TCL), src);
@@ -61,6 +64,7 @@ fn dynamic_name_write_blocks_o125_sinking_issue_1374() {
 // O119 moves and deletes `set` statements, so the same barrier applies.
 #[test]
 fn dynamic_name_write_blocks_o119_packing_issue_1374() {
+    crate::install_surfaces();
     let src = "set $name q\nset a 1\nset b 2\nset c 3\n";
     assert!(!opt_fires(src, TCL, "O119"));
     // Control: the clean top-level sibling still packs under tcl8.6 (top
@@ -76,6 +80,7 @@ fn dynamic_name_write_blocks_o119_packing_issue_1374() {
 // top-level global.
 #[test]
 fn traced_global_store_is_not_a_dead_store_issue_1377() {
+    crate::install_surfaces();
     let src = "proc onw {a b c} { puts trace }\ntrace add variable ::g write ::onw\nset g 1\nset g 2\nputs $g\n";
     assert!(!opt_fires(src, TCL, "O109"));
     assert_eq!(optimised(src, TCL), src);
@@ -85,6 +90,7 @@ fn traced_global_store_is_not_a_dead_store_issue_1377() {
 // `set acc {a b}` (O130) collapses three observable writes into one.
 #[test]
 fn traced_list_chain_is_not_folded_issue_1377() {
+    crate::install_surfaces();
     let src = "proc onw {a b c} { puts trace }\ntrace add variable ::acc write ::onw\nset acc {}\nlappend acc a\nlappend acc b\n";
     assert!(!opt_fires(src, TCL, "O130"));
     assert_eq!(optimised(src, TCL), src);
@@ -98,6 +104,7 @@ fn traced_list_chain_is_not_folded_issue_1377() {
 // must abstain too (that one via the opaque-script barrier).
 #[test]
 fn barrier_reference_blocks_o125_issue_1402() {
+    crate::install_surfaces();
     let src = "proc f {flag cmd} {\nset x 1\nif {$flag} { puts $x }\n$cmd $x\n}";
     assert!(!opt_fires(src, TCL, "O125"));
     let eval_src = "proc f {flag} {\nset x 1\nif {$flag} { puts $x }\neval [list puts $x]\n}";
@@ -126,6 +133,7 @@ fn method_body(body: &str) -> String {
 
 #[test]
 fn tcloo_method_body_survives_the_command_resolution_guard() {
+    crate::install_surfaces();
     // Every `self` spelling that carries a value: the defining class, a bare
     // `[self]` (equivalent to `self object`), and the instance namespace.
     for body in [
@@ -148,6 +156,7 @@ fn tcloo_method_body_survives_the_command_resolution_guard() {
 
 #[test]
 fn a_guarded_method_body_keeps_every_relative_head() {
+    crate::install_surfaces();
     // The guard is about command resolution, not `TclOO` introspection: an
     // ordinary builtin, a `my` dispatch, and a `set` whose value is a nested
     // call each name a command relatively, so each method is guarded.
@@ -163,6 +172,7 @@ fn a_guarded_method_body_keeps_every_relative_head() {
 
 #[test]
 fn o107_still_fires_on_genuinely_unreachable_method_code() {
+    crate::install_surfaces();
     // Control: O107 is suppressed only where the lattice is absent. Every head
     // here is `::`-qualified, so the method gets deep analysis and the `if {0}`
     // body is provably dead. tclsh: `[Greeter new] whoami` prints `live` with
@@ -184,6 +194,7 @@ fn o107_still_fires_on_genuinely_unreachable_method_code() {
 /// `set x 1; puts 2; puts 1`.
 #[test]
 fn the_ordinary_optimiser_folds_a_source_literal_operand() {
+    crate::install_surfaces();
     let src = "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
     let out = optimised(src, TCL);
     assert!(out.contains("puts 2") && !out.contains("[expr"), "{out}");
@@ -191,6 +202,7 @@ fn the_ordinary_optimiser_folds_a_source_literal_operand() {
 
 #[test]
 fn closed_native_consumer_refuses_callbacks_rebinding_and_value_escape() {
+    crate::install_surfaces();
     for source in [
         "set x 1\nputs [expr {$x + [incr x]}]\n",
         "set x 1\nunknown_call\nputs $x\n",
@@ -215,6 +227,7 @@ fn closed_native_consumer_refuses_callbacks_rebinding_and_value_escape() {
 /// reads: its writes are never unused or dead stores (#2413).
 #[test]
 fn sharedvar_writes_are_kept() {
+    crate::install_surfaces();
     const IR: &str = "f5-irules";
     for src in [
         "when CLIENT_ACCEPTED {\n    sharedvar mode\n    set mode 1\n}\n\
@@ -240,6 +253,7 @@ fn sharedvar_writes_are_kept() {
 /// The same body in a Tcl procedure is a proved constant and is rewritten.
 #[test]
 fn a_handler_store_is_a_semantic_fact_and_never_a_rewrite() {
+    crate::install_surfaces();
     use tcl_compiler::analyses::{ConstValue, LatticeValue};
     let handler = "when HTTP_REQUEST {\nset x 1\nlog local0. \"v=$x\"\n}";
     let registry = static_context_for("f5-irules").commands();

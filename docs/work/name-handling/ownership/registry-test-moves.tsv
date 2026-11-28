@@ -10,36 +10,9 @@ bpf-tcl-ir	lib	62	1 direct, 61 via the poisoned cache
 tcl-engine-tclvm	lib	61	55 direct, 6 via the poisoned cache
 tcl-spec-studio	lib	108	39 direct, 69 via the poisoned cache
 tcl-spectcl	lib	106	27 direct, 79 via the poisoned cache
-tcl-spectcl	eval_loader	29	28 direct, 1 via the poisoned cache
-tcl-spectcl	golden_packs	2	2 direct, 0 via the poisoned cache
-tcl-spectcl	hook_plan_republish	1	1 direct, 0 via the poisoned cache
-tcl-spectcl	it_2	31	10 direct, 21 via the poisoned cache
-tcl-spectcl	it_3	30	6 direct, 24 via the poisoned cache
-tcl-spectcl	it_4	16	9 direct, 7 via the poisoned cache
-tcl-spectcl	it_5	105	11 direct, 94 via the poisoned cache
-tcl-spectcl	pack_source_e2e	9	4 direct, 5 via the poisoned cache
-tcl-spectcl	spec_corpus	4	2 direct, 2 via the poisoned cache
 tcl-codegen	lib	564	404 direct, 160 via the poisoned cache
-tcl-codegen	codegen_depth	53	53 direct, 0 via the poisoned cache
-tcl-codegen	codegen_integration	20	18 direct, 2 via the poisoned cache
-tcl-codegen	it_2	302	171 direct, 131 via the poisoned cache
-tcl-codegen	it_3	277	151 direct, 126 via the poisoned cache
-tcl-codegen	it_5	71	70 direct, 1 via the poisoned cache
-tcl-codegen	wasm_tiers	2	2 direct, 0 via the poisoned cache
 tcl-vm	lib	712	1 direct, 711 via the poisoned cache
-tcl-vm	it_5	8	1 direct, 7 via the poisoned cache
 tcl-compiler	lib	8620	2722 direct, 5898 via the poisoned cache
-tcl-compiler	command_definitions	1	1 direct, 0 via the poisoned cache
-tcl-compiler	command_resolution_conformance	1	1 direct, 0 via the poisoned cache
-tcl-compiler	differential_incremental	2	1 direct, 1 via the poisoned cache
-tcl-compiler	it_2	307	5 direct, 302 via the poisoned cache
-tcl-compiler	it_3	743	96 direct, 647 via the poisoned cache
-tcl-compiler	it_4	738	2 direct, 736 via the poisoned cache
-tcl-compiler	it_5	574	26 direct, 548 via the poisoned cache
-tcl-compiler	native_arithmetic_conformance	1	1 direct, 0 via the poisoned cache
-tcl-compiler	per_item_corpus	1	1 direct, 0 via the poisoned cache
-tcl-compiler	resolution_rewrite_oracles	2	1 direct, 1 via the poisoned cache
-tcl-compiler	semantic_identity_answer	3	3 direct, 0 via the poisoned cache
 tcl-registry	lib	875	589 direct, 286 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
 tcl-registry	dialect_oracle	3	3 direct, 0 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
 tcl-registry	it_2	15	9 direct, 6 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264

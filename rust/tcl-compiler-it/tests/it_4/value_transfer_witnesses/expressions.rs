@@ -28,6 +28,7 @@ use super::*;
 /// synthetic `bpfexpr` stands for the frontend's expression arguments.
 #[test]
 fn a_bpf_expression_never_takes_the_tcl_answer() {
+    crate::install_surfaces();
     use tcl_registry::spec::CommandSpec;
     use tcl_registry::value_transfer::SemanticsDeclaration;
     use tcl_registry::value_transfer::builtins::BPF_EXPR;
@@ -65,6 +66,7 @@ fn a_bpf_expression_never_takes_the_tcl_answer() {
 /// 9.1: 99; 8.4: 2).
 #[test]
 fn abs_rebinding_declines() {
+    crate::install_surfaces();
     let rebound = "catch {rename ::tcl::mathfunc::abs ::tcl::mathfunc::saved_abs}\n\
                    catch {proc ::tcl::mathfunc::abs {x} {return 99}}\n\
                    proc p {} {set r [expr {abs(-2)}]; return $r}\nputs [p]\n";
@@ -121,6 +123,7 @@ fn abs_rebinding_declines() {
 /// have answered 4.
 #[test]
 fn a_rebound_nested_head_declines_the_expression() {
+    crate::install_surfaces();
     let source = "proc llength {l} {return 99}\n\
                   proc p {} {set r [expr {[llength {a b}] * 2}]; return $r}\nputs [p]\n";
     for dialect in TCL_CORE_DIALECTS {
@@ -154,6 +157,7 @@ fn a_rebound_nested_head_declines_the_expression() {
 /// and stays open (tclsh 8.4 to 9.1 print `pos pos` and `small big`).
 #[test]
 fn a_finite_condition_decides_when_every_member_agrees() {
+    crate::install_surfaces();
     let decided = |source: &str, dialect: &str| -> Vec<(String, bool)> {
         let unit = unit_of(source, dialect);
         unit.procedures
@@ -190,6 +194,7 @@ fn a_finite_condition_decides_when_every_member_agrees() {
 /// rewritten the call to `puts 3` with Rust's float rendering.
 #[test]
 fn a_folded_call_keeps_a_doubles_spelling() {
+    crate::install_surfaces();
     for source in [
         "proc p {} {return [expr {1.0 * 3}]}\nputs [p]\n",
         "proc p {} {set r [expr {1.0 * 3}]; return $r}\nputs [p]\n",
@@ -209,6 +214,7 @@ fn a_folded_call_keeps_a_doubles_spelling() {
 /// of the constant 5 is `005` and `%5.2f` of 3.14159 is ` 3.14` everywhere.
 #[test]
 fn format_folds_through_the_shared_core() {
+    crate::install_surfaces();
     let source = "proc p {} {set n 5; set r [format %03d $n]; set s [format %s \"\\x4142\"]; \
                   set t [format %5.2f 3.14159]; return \"$r|$s|$t\"}\nputs [p]\n";
     for (dialect, bytes) in [("tcl8.4", "B"), ("tcl8.6", "A42"), ("tcl9.0", "A42")] {
@@ -264,6 +270,7 @@ fn format_folds_through_the_shared_core() {
 /// engine, so it counts nothing.
 #[test]
 fn route_entries_are_counted_per_family() {
+    crate::install_surfaces();
     let tally_of = |source: &str, dialect: &str| {
         let unit = unit_of(source, dialect);
         unit.procedures
@@ -321,6 +328,7 @@ fn route_entries_are_counted_per_family() {
 /// declares no release, so all three release-dependent cases decline there.
 #[test]
 fn expr_acceptance_list() {
+    crate::install_surfaces();
     let cases: [(&str, &str, &str, [Option<&str>; 4]); 10] = [
         ("multi-argument form", "", "expr 1 + 2", [Some("3"); 4]),
         (
@@ -403,6 +411,7 @@ fn expr_acceptance_list() {
 /// would produce (§ *The correlated finite-set limit*).
 #[test]
 fn the_square_of_one_finite_input_stays_correlated() {
+    crate::install_surfaces();
     let source = "proc p {} {foreach a {1 2} {set r [expr {$a * $a}]}}";
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
@@ -436,6 +445,7 @@ fn the_square_of_one_finite_input_stays_correlated() {
 /// false: tclsh 8.4 to 9.1 print `other` twice.
 #[test]
 fn the_mirror_pairs_decline_as_correlated() {
+    crate::install_surfaces();
     let source = "proc p {} {\n\
                    set x 0\n\
                    foreach {a b} {1 10 2 20} { set x [expr {$b / $a}] }\n\
@@ -496,6 +506,7 @@ fn the_mirror_pairs_decline_as_correlated() {
 /// decided.
 #[test]
 fn an_invalid_octal_condition_decides_nothing() {
+    crate::install_surfaces();
     for (literal, quoted) in [("08", false), ("-08", false), ("08", true)] {
         let condition = if quoted {
             format!("\"{literal}\"")
@@ -542,6 +553,7 @@ fn an_invalid_octal_condition_decides_nothing() {
 /// in any release).
 #[test]
 fn expression_witnesses_match_every_release_on_path() {
+    crate::install_surfaces();
     let cases: [(&str, &str); 13] = [
         ("", "expr 1 + 2"),
         ("set a {1 + 1}", "expr \"$a * 2\""),
@@ -614,6 +626,7 @@ fn expression_witnesses_match_every_release_on_path() {
 /// under the version-less `tcl` profile, whose releases disagree on each.
 #[test]
 fn o101_rewrites_only_what_the_route_proves() {
+    crate::install_surfaces();
     let cases: [(&str, [Option<&str>; 5]); 5] = [
         (
             "1 << 70",
@@ -663,6 +676,7 @@ fn o101_rewrites_only_what_the_route_proves() {
 /// release.
 #[test]
 fn a_structure_fold_stays_within_the_targets_tower() {
+    crate::install_surfaces();
     let rebound = "catch {proc ::tcl::mathfunc::abs {x} {return 99}}\n\
                    proc p {} {\n\
                    if {abs(-2) == 2} {puts two} else {puts other}\n\

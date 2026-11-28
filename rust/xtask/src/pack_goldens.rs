@@ -19,7 +19,7 @@
 //! `pack-goldens` — regenerate (or verify) the checked-in golden snapshots
 //! of every shipped `.tclspec`.
 //!
-//! The gate itself is `rust/tcl-spectcl/tests/golden_packs.rs`, which runs on
+//! The gate itself is `rust/tcl-spectcl-it/tests/golden_packs.rs`, which runs on
 //! every `cargo test`; this verb is how a deliberate change to what a pack
 //! means gets written down. Both sides render through
 //! [`tcl_spectcl::golden::render`], so the file the verb writes and the

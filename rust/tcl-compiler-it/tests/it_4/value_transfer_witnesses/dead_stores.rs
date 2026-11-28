@@ -31,6 +31,7 @@ use super::*;
 /// `1` past the increment and printed `1 2 1`.
 #[test]
 fn a_braced_expr_read_keeps_its_store() {
+    crate::install_surfaces();
     // The two programs the examples page gives.
     prints_under_every_release(
         "proc p {} {\n set n 1\n set r [expr {$n + [incr n]}]\n return $r\n}\nputs [p]\n",
@@ -103,6 +104,7 @@ fn a_braced_expr_read_keeps_its_store() {
 /// tclsh 8.5 (8.6 for `try`) to 9.1 prints before and after `tcl opt`.
 #[test]
 fn o109_refuses_the_store_ahead_of_a_partial_lassign() {
+    crate::install_surfaces();
     let kept = [
         (
             "proc p {c} {\n    if {$c} {array set a {k v}}\n    set b old\n    catch {lassign {new second} a b}\n    return $b\n}\nputs [p 0]\nputs [p 1]\n",
@@ -193,6 +195,7 @@ fn o109_refuses_the_store_ahead_of_a_partial_lassign() {
 /// that has its commands.
 #[test]
 fn a_store_ahead_of_a_write_that_may_not_run_stays() {
+    crate::install_surfaces();
     let scans = [
         (
             "proc p {} {\n    array set a {k v}\n    set b old\n    catch {scan {1 2} {%d %d} a b} m\n    return $b\n}\nputs [p]\n",
@@ -385,6 +388,7 @@ const RAISING_STORES: [(&str, &str, &str, &str); 16] = [
 /// commands, and keeps its raising store.
 #[test]
 fn a_raising_store_is_never_dead() {
+    crate::install_surfaces();
     for (source, store, printed, first) in RAISING_STORES {
         for dialect in ["tcl8.6", "tcl9.0"] {
             let (rewritten, rewrites) = optimised(source, dialect);
@@ -533,6 +537,7 @@ const COMPLETING_CALLS: [CompletingCall; 15] = [
 /// prints what tclsh prints before and after `tcl opt` under every release.
 #[test]
 fn a_call_that_cannot_raise_leaves_a_dead_store() {
+    crate::install_surfaces();
     for call in &COMPLETING_CALLS {
         for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
             let (rewritten, rewrites) = optimised(call.source, dialect);

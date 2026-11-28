@@ -93,6 +93,7 @@ const LOOP_BODIES: [(&str, &str, &str, &str); 12] = [
 /// program prints what tclsh prints before and after `tcl opt`.
 #[test]
 fn a_loop_absorbs_break_and_continue() {
+    crate::install_surfaces();
     for (body, after, held, first) in LOOP_BODIES {
         let script = if after.is_empty() {
             body.to_owned()
@@ -202,6 +203,7 @@ fn a_loop_absorbs_break_and_continue() {
 /// after `tcl opt`.
 #[test]
 fn the_iteration_cap_publishes_nothing() {
+    crate::install_surfaces();
     let cap = tcl_compiler::static_loops::DEFAULT_MAX_STATIC_LOOP_ITERS;
     for (bound, enumerated) in [(cap, true), (cap + 1, false)] {
         let source = format!(
@@ -244,6 +246,7 @@ fn the_iteration_cap_publishes_nothing() {
 /// `two`, before and after `tcl opt`.
 #[test]
 fn an_enumeration_runs_only_over_places_it_proves() {
+    crate::install_surfaces();
     let array_binder = "proc p {} {\n    array set b {k keep}\n    set n 0\n    \
                         catch {foreach b {1 2} {incr n}}\n    \
                         if {$n == 0} {puts zero} else {puts other}\n}\np\n";
@@ -313,6 +316,7 @@ fn an_enumeration_runs_only_over_places_it_proves() {
 /// before and after `tcl opt`.
 #[test]
 fn a_name_dead_after_its_loop_keeps_every_loops_state() {
+    crate::install_surfaces();
     let top = "set tmp 1\nset n 0\nforeach x {1 2} { set tmp $x; incr n }\n\
                if {$n == 2} {puts yes} else {puts no}\n";
     let later = format!(
@@ -363,6 +367,7 @@ fn a_name_dead_after_its_loop_keeps_every_loops_state() {
 /// and `minus`, before and after `tcl opt`.
 #[test]
 fn the_state_a_loop_leaves_decides_the_branch_after_it() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    set n 0\n    foreach x {a b c} { incr n }\n    \
                   if {$n == 3} { puts three } else { puts other }\n    set i 10\n    \
                   while {$i > 0} { incr i -3 }\n    \
@@ -394,6 +399,7 @@ fn the_state_a_loop_leaves_decides_the_branch_after_it() {
 /// one. tclsh 8.4 to 9.1 print `3` and `done`, before and after `tcl opt`.
 #[test]
 fn a_loops_own_test_is_the_branch_that_leaves_it() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    set n 0\n    for {set i 0} {$i < 3} {incr i} {\n        \
                   set k 1\n        if {$k == 1} { incr n }\n    }\n    puts $n\n}\n\
                   proc q {} {\n    while 1 { return done }\n}\np\nputs [q]\n";
@@ -414,6 +420,7 @@ fn a_loops_own_test_is_the_branch_that_leaves_it() {
 /// `1` and `0`, before and after `tcl opt`.
 #[test]
 fn a_may_written_element_reads_the_store_to_its_array() {
+    crate::install_surfaces();
     let switch_arm = "proc p {x} {\n    set a 5\n    switch -glob -- $x { x* {set a(k) 1} }\n    \
                       puts $a\n}\np y\np z\n";
     let catch_body = "set a 5\ncatch {set a(k) 1}\nputs $a\n";
@@ -449,6 +456,7 @@ fn a_may_written_element_reads_the_store_to_its_array() {
 /// `-1`, `-6` and `19`, before and after `tcl opt`.
 #[test]
 fn a_bare_or_quoted_body_word_leaves_the_loop() {
+    crate::install_surfaces();
     let programs = [
         (
             "for {set i 5} {$i < 10} {incr i -1} {if {$i < 0} break}\nputs $i\n",
@@ -491,6 +499,7 @@ fn a_bare_or_quoted_body_word_leaves_the_loop() {
 /// `tcl opt`.
 #[test]
 fn whatever_writes_the_counter_keeps_w241_silent() {
+    crate::install_surfaces();
     let helper = std::env::temp_dir().join(format!(
         "value-transfer-witness-helper-{}.tcl",
         std::process::id()
@@ -552,6 +561,7 @@ fn whatever_writes_the_counter_keeps_w241_silent() {
 /// after `tcl opt`.
 #[test]
 fn a_loop_word_is_its_value_with_its_escapes_decoded() {
+    crate::install_surfaces();
     for source in [
         "set r {}\nforeach x {1 2} { lappend r a\\x41 }\n\
          if {$r eq \"aA aA\"} {puts yes} else {puts no}\n",
@@ -588,6 +598,7 @@ fn a_loop_word_is_its_value_with_its_escapes_decoded() {
 /// 9.1 print each program's answer before and after `tcl opt`.
 #[test]
 fn the_eleven_loop_witnesses() {
+    crate::install_surfaces();
     let witnesses = [
         ("for {set i 0} {$i < 5} {incr i} {}\n", "$i == 5", "five"),
         (
@@ -682,6 +693,7 @@ fn the_eleven_loop_witnesses() {
 /// opt`.
 #[test]
 fn the_correlated_pairs_decide_by_enumeration() {
+    crate::install_surfaces();
     let source = "proc p {} {\n\
                    set x 0\n\
                    foreach {a b} {1 10 2 20} { incr x [expr {$b / $a}] }\n\
@@ -730,6 +742,7 @@ fn the_correlated_pairs_decide_by_enumeration() {
 /// procedure, before and after `tcl opt`.
 #[test]
 fn a_loop_condition_reads_the_math_binding() {
+    crate::install_surfaces();
     let top_level = "proc ::tcl::mathfunc::abs {x} {return 99}\n\
                      for {set i 0} {$i < abs(-3)} {incr i} {}\n\
                      if {$i == 3} {puts three} else {puts other}\n";
@@ -766,6 +779,7 @@ fn a_loop_condition_reads_the_math_binding() {
 /// after `tcl opt`.
 #[test]
 fn the_argument_sensitive_rerun_runs_the_callees_loop() {
+    crate::install_surfaces();
     let source = "proc f {n} {\n    set t 0\n    for {set i 0} {$i < $n} {incr i} {incr t 2}\n    \
                   return $t\n}\nset r [f 3]\nputs $r\n";
     for dialect in DIALECTS {
@@ -788,6 +802,7 @@ fn the_argument_sensitive_rerun_runs_the_callees_loop() {
 /// an empty line, before and after `tcl opt`.
 #[test]
 fn an_enumerated_loop_bounds_its_counter_after_it() {
+    crate::install_surfaces();
     let top_level = "set l {a b c}\nfor {set i 0} {$i < 5} {incr i} {}\nputs [lindex $l $i]\n";
     let in_a_procedure = "proc p {} {\n    set l {a b c}\n    for {set i 0} {$i < 5} {incr i} {}\n    \
                           puts [lindex $l $i]\n}\np\n";
@@ -813,6 +828,7 @@ fn an_enumerated_loop_bounds_its_counter_after_it() {
 /// 8.4 to 9.1 print `3` and `6`, before and after `tcl opt`.
 #[test]
 fn a_computed_double_is_spelled_as_tcl_spells_it() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    set x [expr {1.0 * 3}]\n    set n [string length $x]\n    \
                   return $n\n}\nproc q {} {\n    set y [expr {1e300 * 10.0}]\n    \
                   set m [string length $y]\n    return $m\n}\nputs [p]\nputs [q]\n";
@@ -838,6 +854,7 @@ fn a_computed_double_is_spelled_as_tcl_spells_it() {
 /// had no proved place, and the read after it was rewritten to `1`.
 #[test]
 fn a_store_in_a_loop_body_reaches_the_reads_after_the_loop() {
+    crate::install_surfaces();
     const FOO: &str = "proc foo {n} {if {$n == 2} {error x}}\n";
     for body in [
         "set x 1; for {set i 0} {$i < 3} {incr i} {set x $i}; puts $x",
@@ -864,6 +881,7 @@ fn a_store_in_a_loop_body_reaches_the_reads_after_the_loop() {
 /// print `2` and `1` for these programs.
 #[test]
 fn the_code_after_a_substituted_loop_list_runs() {
+    crate::install_surfaces();
     for source in [
         "proc p {} {set n 1; foreach v [incr n] {}; puts $n}\np\n",
         "proc q {} {set n 1; foreach v [list 2] {}; puts 1}\nq\n",

@@ -32,6 +32,7 @@ use super::*;
 /// 9.1 print, before and after `tcl opt`.
 #[test]
 fn the_summary_folds_only_a_call_the_rerun_could_make() {
+    crate::install_surfaces();
     let kept = [
         (
             "proc p {a} {return foo}\nset n 0\nputs [p [incr n]]\nputs $n\n",
@@ -82,6 +83,7 @@ fn the_summary_folds_only_a_call_the_rerun_could_make() {
 /// before and after `tcl opt`.
 #[test]
 fn a_return_inside_a_statement_kept_whole_stops_the_fold() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc p {} {switch -glob -- [clock seconds] {* {return 1}}; return 2}\nputs [p]\n",
@@ -116,6 +118,7 @@ fn a_return_inside_a_statement_kept_whole_stops_the_fold() {
 /// 8.4 to 9.1 print, before and after `tcl opt`, the `lmap` one from 8.6.
 #[test]
 fn a_return_inside_a_call_holding_a_body_stops_the_fold() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc p {} {foreach ::x {1} {return 1}; return 2}\nputs [p]\n",
@@ -160,6 +163,7 @@ fn a_return_inside_a_call_holding_a_body_stops_the_fold() {
 /// program prints, before and after `tcl opt`.
 #[test]
 fn o103_summary_path_folds_a_computed_return() {
+    crate::install_surfaces();
     let source = "proc p {} {set x [string range foobar 0 2]; return $x}\nputs [p]\n";
     let bare = "proc p {} {set x [string range foobar 0 2]; return $x}\np\n";
     let uses = "proc q {a} {return [expr {$a + 1}]}\nputs [q 5]\n";
@@ -227,6 +231,7 @@ fn o103_summary_path_folds_a_computed_return() {
 /// and `[p]`, the one call, folds to the text.
 #[test]
 fn the_summary_returns_the_value_exactly() {
+    crate::install_surfaces();
     let literals = [
         ("1.0", Some(ConstantReturn::float(1.0)), "1.0"),
         (
@@ -298,6 +303,7 @@ fn the_summary_returns_the_value_exactly() {
 /// opt`.
 #[test]
 fn a_padded_value_is_braced_where_a_rewrite_spells_it() {
+    crate::install_surfaces();
     let source = "set x \" 5\"\nputs <$x>\nputs $x\nproc q {} {set y \" 7\"; return $y}\n\
                   puts \"<[q]>\"\nset z [q]\nputs <$z>\n";
     for dialect in DIALECTS {
@@ -318,6 +324,7 @@ fn a_padded_value_is_braced_where_a_rewrite_spells_it() {
 /// exit. The program prints what tclsh prints, before and after `tcl opt`.
 #[test]
 fn a_run_that_proves_no_value_leaves_no_constant() {
+    crate::install_surfaces();
     let source =
         "proc p {} {while {1} {set x [expr {1/0}]}; return 5}\ncatch {set y [p]} m\nputs $m\n";
     for dialect in DIALECTS {
@@ -346,6 +353,7 @@ fn a_run_that_proves_no_value_leaves_no_constant() {
 /// print 2, 6 and 10, before and after `tcl opt`.
 #[test]
 fn bump_decides_through_both_o103_paths() {
+    crate::install_surfaces();
     let source = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\
                   proc p {} {set n 1; bump n; return $n}\n\
                   proc q {x} {set n $x; bump n; return $n}\n\
@@ -380,6 +388,7 @@ fn bump_decides_through_both_o103_paths() {
 /// print 2 and 6, before and after `tcl opt`.
 #[test]
 fn an_embedded_call_applies_its_summary() {
+    crate::install_surfaces();
     let source = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n\
                   proc p {} {set n 1; set r [bump n]; return $n}\n\
                   proc s {} {set m 2; set t [expr {[bump m] + $m}]; return $t}\n\
@@ -455,6 +464,7 @@ const BUMP: &str = "proc bump {name {by 1}} {upvar 1 $name v; incr v $by}\n";
 /// same error.
 #[test]
 fn the_seven_summary_witnesses() {
+    crate::install_surfaces();
     let bump_twice = format!("{BUMP}set n 1\nbump n\nbump n 2\nputs $n\n");
     let reset = "proc reset {name} {upvar 1 $name v; unset v}\nset m 1\nreset m\n\
                  if {[info exists m]} {puts bound} else {puts unbound}\n";
@@ -534,6 +544,7 @@ fn the_seven_summary_witnesses() {
 /// 8.4 to 9.1 print `2 11` before and after the optimiser.
 #[test]
 fn two_callers_share_one_summary() {
+    crate::install_surfaces();
     let source = "proc bump {name} {upvar 1 $name v; incr v}\nset n 1\nbump n\n\
                   set other 10\nbump other\nputs \"$n $other\"\n";
     for dialect in DIALECTS {
@@ -564,6 +575,7 @@ fn two_callers_share_one_summary() {
 /// printed `3 10 3`.
 #[test]
 fn a_nested_caller_keeps_the_callee_whole() {
+    crate::install_surfaces();
     let source = "proc bump {name} {\n  upvar 1 $name v\n  incr v\n}\nset n 1\nset m 10\n\
                   bump n\nset z [bump m]\nputs \"$n $m $z\"\n";
     for dialect in DIALECTS {
@@ -614,6 +626,7 @@ fn prints_then_errors(source: &str, printed: &str) {
 /// and 8.5 onwards create the absent place, so there `[c]` folds to 0.
 #[test]
 fn a_call_that_cannot_complete_is_a_raise() {
+    crate::install_surfaces();
     let raising = [
         format!("{BUMP}proc c {{}} {{set n foo; bump n; return 0}}\nputs [c]\n"),
         format!("{BUMP}proc c {{name}} {{bump name; return 0}}\nputs [c foo]\n"),
@@ -676,6 +689,7 @@ fn a_call_that_cannot_complete_is_a_raise() {
 /// in each, before and after `tcl opt`.
 #[test]
 fn a_statement_that_certainly_raises_ends_the_exit_reading() {
+    crate::install_surfaces();
     let sources = [
         "proc c {} {set n foo; incr n; return 0}\nputs [c]\n",
         "proc p {} {expr {1/0}; return foo}\nputs [p]\n",
@@ -712,6 +726,7 @@ const BUMPD: &str = "proc bumpd {{name n}} {upvar 1 $name v; incr v}\n";
 /// `tcl opt`.
 #[test]
 fn an_omitted_name_argument_names_its_default() {
+    crate::install_surfaces();
     let after = format!("{BUMPD}set n 1\nbumpd n\nbumpd\nputs $n\n");
     let before = format!("{BUMPD}set n 1\nbumpd\nbumpd n\nputs $n\n");
     let both = format!(
@@ -764,6 +779,7 @@ fn an_omitted_name_argument_names_its_default() {
 /// print `arr` and 1, before and after `tcl opt`.
 #[test]
 fn an_element_argument_is_a_barrier() {
+    crate::install_surfaces();
     let source = format!(
         "{BUMP}proc q {{}} {{set a(k) 1; bump a(k); if {{[array exists a]}} {{return arr}} else {{return scalar}}}}\n\
          puts [q]\nset b(k) 1\nbump b(k)\nputs [array exists b]\n"
@@ -803,6 +819,7 @@ fn reads_before_set(source: &str, dialect: &str, name: &str) -> bool {
 /// that reports, before and after `tcl opt`.
 #[test]
 fn a_read_after_a_call_reads_the_place_as_the_call_leaves_it() {
+    crate::install_surfaces();
     let reporting = [
         (
             format!("{RESET}proc p {{}} {{set m 1; reset m; puts $m}}\np\n"),
@@ -855,6 +872,7 @@ fn a_read_after_a_call_reads_the_place_as_the_call_leaves_it() {
 /// tclsh 8.4 to 9.1 print `gone` twice, before and after `tcl opt`.
 #[test]
 fn a_call_past_the_rerun_depth_takes_the_summarys_step() {
+    crate::install_surfaces();
     let source = "proc drop {name n} {upvar 1 $name v; \
                   if {$n > 0} {drop v [expr {$n - 1}]; set n 0} else {unset v}}\n\
                   set z 1\ndrop z 40\nif {[info exists z]} {puts kept} else {puts gone}\n\
@@ -879,6 +897,7 @@ fn a_call_past_the_rerun_depth_takes_the_summarys_step() {
 /// and `puts [llength $x]` printed 1 where tclsh prints 0.
 #[test]
 fn split_of_the_empty_string_is_the_empty_list() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    set x [split \"\"]\n    puts [llength $x]\n    puts \"<[split {}]>\"\n}\np\n";
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let (rewritten, rewrites) = optimised(source, dialect);
@@ -895,6 +914,7 @@ fn split_of_the_empty_string_is_the_empty_list() {
 /// `string range abcdefghijkl 0 1+1` raises `bad index` there and is no value.
 #[test]
 fn a_raising_substitution_is_labelled_by_its_completion() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    set r [string range abcdefghijkl 0 1+1]\n    return $r\n}\n";
     let unit = summarised_unit(source, "tcl8.4");
     assert_eq!(
@@ -915,6 +935,7 @@ fn a_raising_substitution_is_labelled_by_its_completion() {
 /// after the optimiser.
 #[test]
 fn code_that_never_runs_keeps_the_function_constant() {
+    crate::install_surfaces();
     let zero = LatticeValue::Const(ConstValue::int(0));
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
         for source in [
@@ -977,6 +998,7 @@ fn code_that_never_runs_keeps_the_function_constant() {
 /// the optimiser.
 #[test]
 fn a_callback_read_and_a_qualified_upvar_write_keep_their_stores() {
+    crate::install_surfaces();
     prints_under_every_release(
         "set x 5\nafter 0 {puts $x}\nupdate\nset x 6\nputs $x\n",
         "5\n6\n",

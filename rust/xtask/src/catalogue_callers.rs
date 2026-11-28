@@ -149,7 +149,7 @@ const ALLOWED: &[(&str, &str)] = &[
         "`could_collide` asks every profile's context whether two packages coexist",
     ),
     (
-        "rust/tcl-spectcl/tests/it_5/registry_sweep.rs",
+        "rust/tcl-spectcl-it/tests/it_5/registry_sweep.rs",
         "tests: the registry sweep walks every catalogue profile",
     ),
     (

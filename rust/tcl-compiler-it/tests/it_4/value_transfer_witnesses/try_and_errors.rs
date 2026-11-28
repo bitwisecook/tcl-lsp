@@ -30,6 +30,7 @@ use super::*;
 /// state before the body and the state at its end alone.
 #[test]
 fn a_throw_between_two_writes_is_a_state_the_handler_sees() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc foo {} {error x}\nproc p {} {\n    set x 1\n    catch {set x 2; foo; set x 1}\n    puts $x\n}\np\n",
@@ -69,6 +70,7 @@ fn a_throw_between_two_writes_is_a_state_the_handler_sees() {
 /// in the body of a `try`, which stays one block.
 #[test]
 fn a_statement_after_a_certain_error_never_runs() {
+    crate::install_surfaces();
     let in_catch = "proc p {} {\n    array set b {k v}\n    catch {lassign {x y} a b; set z 1} m\n    puts [info exists z]\n}\np\n";
     let in_try = "proc p {} {\n    array set b {k v}\n    try {lassign {x y} a b; set z 1} on error {} {}\n    puts [info exists z]\n}\np\n";
     for (source, first) in [(in_catch, "8.5"), (in_try, "8.6")] {
@@ -90,6 +92,7 @@ fn a_statement_after_a_certain_error_never_runs() {
 /// run is still reached, as it was before the prefix rule.
 #[test]
 fn a_certain_error_outside_a_handler_claims_nothing() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    array set b {k v}\n    lassign {x y} a b\n    catch {set z 1}\n    return $z\n}\n";
     for dialect in ["tcl8.6", "tcl9.0"] {
         let unit = unit_of(source, dialect);
@@ -172,6 +175,7 @@ const LEVEL_ZERO_RETURNS: [LevelZeroReturn; 5] = [
 /// and `catch` reports it.
 #[test]
 fn a_level_zero_return_completes_where_it_stands() {
+    crate::install_surfaces();
     for program in &LEVEL_ZERO_RETURNS {
         for dialect in ["tcl8.6", "tcl9.0"] {
             let (rewritten, rewrites) = optimised(program.source, dialect);
@@ -217,6 +221,7 @@ fn a_level_zero_return_completes_where_it_stands() {
 /// opt`.
 #[test]
 fn a_body_that_ends_in_an_error_may_have_failed_at_its_start() {
+    crate::install_surfaces();
     let source = "proc p {d} {\n    try {set x [expr {1 / $d}]; error boom} on error {} {}\n    if {[info exists x]} {return yes}\n    return no\n}\nputs [p 0]\nputs [p 1]\n";
     for dialect in ["tcl8.6", "tcl9.0"] {
         let (rewritten, _) = optimised(source, dialect);
@@ -289,6 +294,7 @@ const FINALLY_PATHS: [(&str, &str); 13] = [
 /// handler's store the clause overwrites is dead (W220).
 #[test]
 fn try_finally_runs_on_every_path() {
+    crate::install_surfaces();
     let mut sources: Vec<(String, &str)> = FINALLY_PATHS
         .iter()
         .map(|(why, statement)| {
@@ -365,6 +371,7 @@ fn try_finally_runs_on_every_path() {
 /// optimiser, and reads no unset name (no W210).
 #[test]
 fn try_handlers_run_as_the_registry_chain_reads_them() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc p {} {\n    try {error boom} on error {} {set x 1} on error {} {return} finally {puts $x}\n}\np\n",
@@ -418,6 +425,7 @@ fn try_handlers_run_as_the_registry_chain_reads_them() {
 /// before and after the optimiser under its own dialect.
 #[test]
 fn a_handler_selector_reads_the_targets_numerals() {
+    crate::install_surfaces();
     let source = "set g 0\nproc p {} {\n    global g\n    try {return -level 0 -code 8 boom} on 010 {} {set g 1} finally {}\n}\ncatch p\nputs $g\n";
     let (under_8_6, _) = optimised(source, "tcl8.6");
     assert!(
@@ -455,6 +463,7 @@ fn a_handler_selector_reads_the_targets_numerals() {
 /// to 9.1 print before and after the optimiser, and the `try` stays.
 #[test]
 fn a_handler_that_never_runs_keeps_its_try() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc p {} {\n    try {error boom} on error {} {puts first} on 1 {m} {puts second}\n    puts after\n}\np\n",
@@ -505,6 +514,7 @@ fn a_handler_that_never_runs_keeps_its_try() {
 /// tclsh 8.6 to 9.1 print before and after the optimiser.
 #[test]
 fn a_finally_resumes_what_it_interrupted() {
+    crate::install_surfaces();
     let never_completes = "proc p {} {\n    while 1 {\n        try {break} on error {} {} finally {}\n        set x 1\n    }\n    puts $x\n}\n";
     let returns = "proc p {} {\n    try {return early} on error {} {} finally {}\n    set x 1\n    return $x\n}\nputs [p]\n";
     let resumes_past = "proc p {c} {\n    try { try {if {$c} {return}} finally {}; set x 1 } finally {puts $x}\n}\np 0\n";
@@ -571,6 +581,7 @@ fn a_finally_resumes_what_it_interrupted() {
 /// `return` or an error would have run it.
 #[test]
 fn an_exit_runs_no_finally() {
+    crate::install_surfaces();
     for body in ["exit", "exit 7"] {
         let source =
             format!("proc p {{}} {{\n    global g\n    try {{{body}}} finally {{set g 1}}\n}}\n");
@@ -595,6 +606,7 @@ fn an_exit_runs_no_finally() {
 /// print, before and after the optimiser, and reads no unset name.
 #[test]
 fn a_handler_is_thrown_to_from_where_the_body_leaves() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc p {} {\n    try {return r3; set v 8} on return {} {puts t8}\n    return done\n}\nputs [p]\n",
@@ -740,6 +752,7 @@ const BETWEEN_TWO_STORES: [(&str, &str, &str, &str); 16] = [
 /// state before the body and at its end alone.
 #[test]
 fn a_try_body_is_thrown_to_from_between_its_stores() {
+    crate::install_surfaces();
     for (why, statement, printed, kept) in BETWEEN_TWO_STORES {
         let source = format!(
             "proc foo {{args}} {{if {{$args eq {{}} || [lindex $args 0] == 2}} {{error x}}}}\nproc p {{c}} {{\n    set x 1\n    {statement}\n}}\ncatch {{p 1}}\n"
@@ -786,6 +799,7 @@ fn a_try_body_is_thrown_to_from_between_its_stores() {
 /// print, before and after the optimiser.
 #[test]
 fn a_split_try_body_keeps_what_its_handlers_were_proved() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc p {} {\n    try { try {set z 0; error boom} on error {} {set x 1; return} finally {} } finally {puts $x}\n}\np\n",

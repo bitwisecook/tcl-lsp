@@ -40,6 +40,7 @@ expect_relevant rust/tcl-native-model/src/lib.rs
 expect_relevant rust/tcl-codegen/src/lib.rs
 expect_relevant runtime/rust/src/lib.rs
 expect_relevant rust/tcl-spectcl/data/shipped-pack-dirs.txt
+expect_relevant rust/tcl-spectcl-it/tests/spec_corpus.rs
 expect_unrelated README.md
 expect_unrelated editors/vscode/src/extension.ts
 

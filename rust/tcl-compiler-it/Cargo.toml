@@ -19,7 +19,7 @@
 [package]
 name = "tcl-compiler-it"
 publish.workspace = true
-description = "tcl-compiler's tests that need crates above it (tcl-spectcl, tcl-engine-tclvm); no library code"
+description = "tcl-compiler's tests that need crates above it (tcl-spectcl, tcl-engine-tclvm) or read the command registry; no library code"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -44,7 +44,13 @@ tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-lexer = { path = "../tcl-lexer" }
+# Installs the shipped command surfaces before the first registry read.
 tcl-registry = { path = "../tcl-registry" }
+tcl-native-model = { path = "../tcl-native-model" }
+tcl-runtime-api = { path = "../tcl-runtime-api" }
+tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }
+serde_json = { workspace = true }
+rayon = "1"
 
 [lints]
 workspace = true

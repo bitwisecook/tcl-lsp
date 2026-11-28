@@ -23,6 +23,7 @@ rust/tcl-cli-support
 rust/tcl-cli-support-it
 rust/tcl-cmd-core
 rust/tcl-codegen
+rust/tcl-codegen-it
 rust/tcl-compiler
 rust/tcl-compiler-it
 rust/tcl-core-types
@@ -67,6 +68,7 @@ rust/tcl-spec-hooks-it
 rust/tcl-spec-studio
 rust/tcl-spec-studio-it
 rust/tcl-spectcl
+rust/tcl-spectcl-it
 rust/tcl-sslictcl
 rust/tcl-syntax
 rust/tcl-test-support

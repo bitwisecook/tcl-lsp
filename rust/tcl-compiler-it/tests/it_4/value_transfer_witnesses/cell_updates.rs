@@ -25,6 +25,7 @@ use super::*;
 /// `tcl opt` had rewritten `puts $x` to `puts 5`, where `f 1` prints 2.
 #[test]
 fn a_value_position_increment_never_launders_a_join() {
+    crate::install_surfaces();
     let source =
         "proc f {cond} {set n 1; if {$cond} {set x [incr n]} else {set x 5}; puts $x}\nf 1\nf 0\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "f5-irules"] {
@@ -43,6 +44,7 @@ fn a_value_position_increment_never_launders_a_join() {
 /// "a\tb"` folded to `set l {{a\tb}}`.
 #[test]
 fn a_cell_update_reads_its_words_as_tcl_substitutes_them() {
+    crate::install_surfaces();
     let cases: [(&str, &str, LatticeValue, &str); 4] = [
         (
             "proc p {} {set x 1; set s a; append s {$x}; set t $s; puts $t}\np\n",
@@ -85,6 +87,7 @@ fn a_cell_update_reads_its_words_as_tcl_substitutes_them() {
 /// Tcl substitutes it (`a` and a tab); a braced word keeps its backslash.
 #[test]
 fn value_position_words_are_read_as_tcl_substitutes_them() {
+    crate::install_surfaces();
     let quoted = "proc p {} {set r [string range \"a\\tb\" 0 1]; puts $r}\np\n";
     let braced = "proc p {} {set r [string range {a\\tb} 0 1]; puts $r}\np\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
@@ -101,6 +104,7 @@ fn value_position_words_are_read_as_tcl_substitutes_them() {
 /// where tclsh prints 2.
 #[test]
 fn an_expanded_word_in_value_position_is_several_operands() {
+    crate::install_surfaces();
     let source = "proc p {} {set l [list {*}{a b}]; puts [llength $l]; puts [lindex $l 1]}\np\n";
     for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
         let value = last_value(source, dialect, "::p", "l");
@@ -118,6 +122,7 @@ fn an_expanded_word_in_value_position_is_several_operands() {
 /// builtin's 2, and the statement says why (#2164).
 #[test]
 fn the_shared_lattice_declines_a_renamed_head() {
+    crate::install_surfaces();
     let body = "proc p {} {set n 1; incr n; return $n}\n";
     let shadowed = format!("proc incr {{v args}} {{return 99}}\n{body}");
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
@@ -153,6 +158,7 @@ fn the_shared_lattice_declines_a_renamed_head() {
 /// declaration stays local.
 #[test]
 fn a_qualified_nested_cell_update_is_a_global_write() {
+    crate::install_surfaces();
     use tcl_compiler::cfg_builder::global_write_info::detect_global_write_procs;
     use tcl_compiler::lowering::lower_to_ir;
     let registry = static_context_for("tcl8.6").commands();
@@ -194,6 +200,7 @@ fn a_qualified_nested_cell_update_is_a_global_write() {
 /// `upvar #0`: the caller at the global frame reads `::hits` as `hits`.
 #[test]
 fn a_qualified_alias_target_is_a_global_write_at_the_caller() {
+    crate::install_surfaces();
     let source = "set hits 0\nproc bump {} {upvar #0 ::hits h; incr h}\nbump\nputs $hits\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
         let (rewritten, rewrites) = optimised(source, dialect);
@@ -211,6 +218,7 @@ fn a_qualified_alias_target_is_a_global_write_at_the_caller() {
 /// (tclsh 8.4 to 9.1 print 15, where deleting it printed 5).
 #[test]
 fn a_store_a_global_writing_callee_reads_is_kept() {
+    crate::install_surfaces();
     let source = "set hits 10\nproc bump {} {global hits; incr hits 5}\nbump\nputs $hits\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
         let (rewritten, rewrites) = optimised(source, dialect);
@@ -227,6 +235,7 @@ fn a_store_a_global_writing_callee_reads_is_kept() {
 /// tclsh 8.4 to 9.1 print 0 then 1 for both programs.
 #[test]
 fn a_store_a_global_reading_callee_observes_is_kept() {
+    crate::install_surfaces();
     let source = "set hits 0\nproc show {} {global hits; puts $hits}\nshow\nset hits 1\nshow\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
         let (rewritten, rewrites) = optimised(source, dialect);
@@ -244,6 +253,7 @@ fn a_store_a_global_reading_callee_observes_is_kept() {
 /// so is `w`, which tclsh 8.4 to 9.1 print, before and after the optimiser.
 #[test]
 fn a_value_position_set_reads_the_variable() {
+    crate::install_surfaces();
     let source = "proc p {} {set x hello; set r [set x]; set w [set x 10]; return $r$w}\n";
     let ten = Some(LatticeValue::Const(ConstValue::int(10)));
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "f5-irules"] {
@@ -265,6 +275,7 @@ fn a_value_position_set_reads_the_variable() {
 /// optimiser forwards it into `puts $n` (O100).
 #[test]
 fn program_three_folds_in_every_consumer() {
+    crate::install_surfaces();
     let source = "proc p {} {set n 1; incr n; incr n 2; puts $n}\np\n";
     for dialect in TCL_CORE_DIALECTS {
         let unit = unit_of(source, dialect);

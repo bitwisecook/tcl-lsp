@@ -31,6 +31,7 @@ use super::*;
 /// tclsh prints `hit` before and after the optimiser.
 #[test]
 fn the_flattened_form_yields_o107() {
+    crate::install_surfaces();
     let source = "set acc \"\"; append acc foo; append acc bar\nswitch -- $acc {\n    baz     { puts never }\n    default { puts always }\n}\n";
     let pattern = u32::try_from(source.find("baz").expect("the dead arm")).expect("an offset");
     for dialect in DIALECTS {
@@ -85,6 +86,7 @@ fn the_flattened_form_yields_o107() {
 /// prints `always` under tclsh 8.4 to 9.1 (`-nocase` from 8.5).
 #[test]
 fn program_four_yields_o112_and_i231_for_every_form() {
+    crate::install_surfaces();
     let build = "set acc \"\"; append acc foo; append acc bar\n";
     let arms = "{\n    baz     { puts never }\n    default { puts always }\n}\n";
     // `baz -` shares `qux`'s body; the `-` is spelled bare, the one spelling
@@ -178,6 +180,7 @@ fn program_four_yields_o112_and_i231_for_every_form() {
 /// the optimiser.
 #[test]
 fn a_selection_fact_folds_no_condition_beside_it() {
+    crate::install_surfaces();
     let source = "proc p {x} {\n    set s abc\n    switch -glob -- $s {a* {puts A} b* {puts B}}\n    if {$x} {puts X}\n}\np 1\np 0\n";
     for dialect in DIALECTS {
         let registry = static_context_for(dialect).commands();
@@ -204,6 +207,7 @@ fn a_selection_fact_folds_no_condition_beside_it() {
 /// one with an exit the flow graph or the body's text finds draws none.
 #[test]
 fn a_decided_loop_header_gives_w240_or_w241() {
+    crate::install_surfaces();
     let codes = |source: &str, dialect: &str| -> Vec<String> {
         let mut found: Vec<String> = tcl_compiler::analyser::Analyser::new()
             .analyse(source, dialect)
@@ -262,6 +266,7 @@ fn a_decided_loop_header_gives_w240_or_w241() {
 /// nothing is recorded or folded.
 #[test]
 fn case_selects_its_glob_arm() {
+    crate::install_surfaces();
     for clauses in [
         "in a* {puts yes} default {puts no}",
         "in abc {puts yes} default {puts no}",
@@ -353,6 +358,7 @@ const SAME_CHARACTERS: [&str; 18] = [
 /// O107 rewrite removes the arm that runs.
 #[test]
 fn a_switch_compares_the_values_of_its_words_however_they_are_spelled() {
+    crate::install_surfaces();
     for source in SAME_CHARACTERS {
         for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
             let (rewritten, _) = optimised(source, dialect);
@@ -389,6 +395,7 @@ fn a_switch_compares_the_values_of_its_words_however_they_are_spelled() {
 /// its decoded value, so `\x2dglob` is an option as `-glob` is.
 #[test]
 fn a_subject_a_release_may_read_as_an_option_is_not_folded_before_8_5() {
+    crate::install_surfaces();
     let bare = "set x -glob\nswitch $x {-glob {puts G} default {puts D}}\n";
     let escaped = "switch \\x2dglob {-glob {puts G} default {puts D}}\n";
     for source in [bare, escaped] {
@@ -444,6 +451,7 @@ fn a_subject_a_release_may_read_as_an_option_is_not_folded_before_8_5() {
 /// under every release's profile and under one that names none.
 #[test]
 fn a_subject_inside_the_scan_of_the_arms_as_words_is_not_folded_on_any_release() {
+    crate::install_surfaces();
     let source = "set x -glob\nswitch $x a {puts A} default {puts D}\n";
     for (series, tclsh) in releases_on_path() {
         let (rewritten, _) = optimised(source, &dialect_of(series));
@@ -467,6 +475,7 @@ fn a_subject_inside_the_scan_of_the_arms_as_words_is_not_folded_on_any_release()
 /// and after the optimiser, which folded the arm to `hit` under all of them.
 #[test]
 fn a_braced_arm_list_decodes_its_elements_under_the_releases_escapes() {
+    crate::install_surfaces();
     for (series, tclsh) in releases_on_path() {
         let expected = if series < "8.6" { "miss\n" } else { "hit\n" };
         for source in [

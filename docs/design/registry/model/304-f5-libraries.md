@@ -239,7 +239,7 @@ gate).
   finds nothing in the core.
 - **Conformance unchanged:** these iRules and iApps rows produce
   byte-identical output before and after:
-  - `tcl-compiler/tests/it_5/checks/irules.rs`;
+  - `tcl-compiler-it/tests/it_5/checks/irules.rs`;
   - the F5 evidence rows (`tcl-registry/src/f5/evidence/resolution_contexts.rs`,
     the 92 parser cases per context, and `f5/corpus` tests);
   - item 224's build-stamped rows;

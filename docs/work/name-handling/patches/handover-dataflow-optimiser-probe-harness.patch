@@ -1,17 +1,17 @@
-diff --git a/rust/tcl-compiler/tests/it_3/main.rs b/rust/tcl-compiler/tests/it_3/main.rs
+diff --git a/rust/tcl-compiler-it/tests/it_3/main.rs b/rust/tcl-compiler-it/tests/it_3/main.rs
 index 67a67d04..7efd1d8b 100644
---- a/rust/tcl-compiler/tests/it_3/main.rs
-+++ b/rust/tcl-compiler/tests/it_3/main.rs
+--- a/rust/tcl-compiler-it/tests/it_3/main.rs
++++ b/rust/tcl-compiler-it/tests/it_3/main.rs
 @@ -39,3 +39,4 @@ mod tcl_expr_eval;
  mod type_propagation;
  mod var_escape_residual2;
  mod w210_short_circuit;
 +mod zz_probe;
-diff --git a/rust/tcl-compiler/tests/it_3/zz_probe.rs b/rust/tcl-compiler/tests/it_3/zz_probe.rs
+diff --git a/rust/tcl-compiler-it/tests/it_3/zz_probe.rs b/rust/tcl-compiler-it/tests/it_3/zz_probe.rs
 new file mode 100644
 index 00000000..dce01f59
 --- /dev/null
-+++ b/rust/tcl-compiler/tests/it_3/zz_probe.rs
++++ b/rust/tcl-compiler-it/tests/it_3/zz_probe.rs
 @@ -0,0 +1,212 @@
 +// Local probe harness. Not committed.
 +use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};

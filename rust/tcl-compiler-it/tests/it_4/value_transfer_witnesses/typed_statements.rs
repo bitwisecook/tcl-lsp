@@ -97,6 +97,7 @@ fn interval_holds(interval: Interval, text: &str) -> bool {
 /// both release-dependent cases.
 #[test]
 fn the_three_incr_models_agree() {
+    crate::install_surfaces();
     let cases: [(&str, &str, [Option<&str>; 5]); 3] = [
         ("5", "incr x $n", [Some("8"); 5]),
         (
@@ -161,6 +162,7 @@ fn the_three_incr_models_agree() {
 /// the optimised program prints 2 twice, as every release does (#2050).
 #[test]
 fn set_result_incr_keeps_its_increment() {
+    crate::install_surfaces();
     let source = "proc p {} {set n 1; set result [incr n]; puts $result; puts $n}\np\n";
     let store = source.find("set n 1").expect("the store");
     for dialect in DIALECTS {
@@ -190,6 +192,7 @@ fn set_result_incr_keeps_its_increment() {
 /// 9.1 print. The programs run at the top level, which is no iRule.
 #[test]
 fn o104_and_o130_fold_a_chain_through_a_lattice_operand() {
+    crate::install_surfaces();
     let cases = [
         (
             "set s hello\nset p again\nappend s $p\nputs $s\n",
@@ -231,6 +234,7 @@ fn o104_and_o130_fold_a_chain_through_a_lattice_operand() {
 /// no line of the optimised program holds only its closing quote (#2053).
 #[test]
 fn deleting_a_quoted_store_leaves_no_quote() {
+    crate::install_surfaces();
     let source = "set s hello\nset p \"again\"\nappend s $p\nputs $s\n";
     for dialect in DIALECTS {
         let (rewritten, rewrites) = optimised(source, dialect);
@@ -250,6 +254,7 @@ fn deleting_a_quoted_store_leaves_no_quote() {
 /// `lassign` assigns `new`, which no rewrite forwards past (#2144).
 #[test]
 fn lassign_is_not_a_write_under_a_profile_without_it() {
+    crate::install_surfaces();
     let source = "set a old\ncatch {lassign {new second} a b}\nputs $a\n";
     let (rewritten, rewrites) = optimised(source, "tcl8.4");
     assert!(rewritten.contains("puts old"), "{rewritten}\n{rewrites:#?}");
@@ -280,6 +285,7 @@ fn lassign_is_not_a_write_under_a_profile_without_it() {
 /// 3, 3, 2, `{x<TAB>y}` and 3).
 #[test]
 fn a_typed_assignment_reads_its_word_as_tcl_substitutes_it() {
+    crate::install_surfaces();
     let cases: [(&str, &str, LatticeValue, &str); 5] = [
         (
             "proc p {} {set s \"a\\tb\"; puts [string length $s]}\np\n",
@@ -330,6 +336,7 @@ fn a_typed_assignment_reads_its_word_as_tcl_substitutes_it() {
 /// completion it is, after no store. Read as a substitution it folded to 4.
 #[test]
 fn a_braced_increment_amount_is_its_text() {
+    crate::install_surfaces();
     let body = "proc p {} {set n 3; set x 1; incr x {$n}; return $x}\n";
     for dialect in DIALECTS {
         let unit = unit_of(body, dialect);
@@ -370,6 +377,7 @@ fn a_braced_increment_amount_is_its_text() {
 /// no release declines.
 #[test]
 fn a_leading_hash_is_quoted_per_release() {
+    crate::install_surfaces();
     let source = "proc p {} {set r [list # a]; set l {}; lappend l # b; puts $r; puts $l}\np\n";
     for (dialect, list, appended) in [
         ("tcl8.4", Some("# a"), Some("# b")),
@@ -419,6 +427,7 @@ fn a_leading_hash_is_quoted_per_release() {
 /// print `helloworld`.
 #[test]
 fn a_typed_assignment_declines_once_set_is_rebound() {
+    crate::install_surfaces();
     let source =
         "proc set {name value} {return ZZZ}\nproc p {} {set s hello; append s world; puts $s}\np\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
@@ -449,6 +458,7 @@ fn a_typed_assignment_declines_once_set_is_rebound() {
 /// `a<TAB>b` and `x<TAB>y`, before and after the rewrite).
 #[test]
 fn o100_forwards_a_tab_verbatim() {
+    crate::install_surfaces();
     for (source, word, output) in [
         ("set r {a\tb}\nputs $r\n", "{a\tb}", "a\tb\n"),
         (
@@ -479,6 +489,7 @@ fn o100_forwards_a_tab_verbatim() {
 /// program fails there the same way before and after.
 #[test]
 fn a_keyed_update_reads_its_dictionary_under_every_spelling() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc p {} {set d {a 1}; ::tcl::dict::set d k v; return $d}\nputs [p]\n",

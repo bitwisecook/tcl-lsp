@@ -48,10 +48,14 @@ mod embed;
 mod error;
 mod exec;
 mod expr;
+mod expr_surface_e2e;
 mod fixture;
 mod interp;
+mod library_bootstrap_presence;
+mod native_byte_literals;
 mod native_return_merge;
 mod native_switch;
+mod native_variable_declaration;
 mod opcode_c_parity;
 mod opcode_catch_parity;
 mod prelude;
@@ -60,6 +64,13 @@ mod safe_interp_e2e;
 mod string_map_identity_receipt;
 mod subst;
 mod tailcall_uplevel_e2e;
+mod thread_exit_retirement;
 mod value_ops;
 mod value_source_tests;
 mod variable_container_models;
+
+/// Installs the shipped command surfaces; the tests that moved here from
+/// `tcl-vm` call it before their first registry read.
+fn install_surfaces() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
+}

@@ -563,7 +563,7 @@ its reason; MCP rename returns a successful tool result containing
 `ConformanceCounts` reports correct answers, abstentions and wrong answers
 independently. A finite set that excludes the oracle answer counts as wrong.
 
-The [source identity regressions](../../../rust/tcl-compiler/tests/semantic_identity_answer.rs)
+The [source identity regressions](../../../rust/tcl-compiler-it/tests/semantic_identity_answer.rs)
 cover the deletion and rename fixtures. Both engine adapters have
 `semantic_identity_tests::command_refs_survive_rename_and_split_on_recreation`
 in their command-token modules; `cargo test -p tcl-vm semantic_identity_tests

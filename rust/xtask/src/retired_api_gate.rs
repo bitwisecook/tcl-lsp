@@ -668,7 +668,7 @@ const OWNED: &[OwnedPattern] = &[
         owners: &[
             "rust/tcl-registry/",
             "rust/tcl-compiler/src/alias.rs",
-            "rust/tcl-spectcl/tests/it_4/analyser_hooks.rs",
+            "rust/tcl-spectcl-it/tests/it_4/analyser_hooks.rs",
         ],
     },
     OwnedPattern {
@@ -690,7 +690,7 @@ const OWNED: &[OwnedPattern] = &[
             "rust/tcl-registry/",
             // The registry sweep, hosted by `tcl-spectcl` because it loads
             // the shipped packs.
-            "rust/tcl-spectcl/tests/it_5/registry_sweep.rs",
+            "rust/tcl-spectcl-it/tests/it_5/registry_sweep.rs",
             "rust/tcl-compiler/src/command_binding/trace_registrations.rs",
             "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
         ],

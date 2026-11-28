@@ -1,0 +1,1930 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// Retained diagnostic owners require deeper Send/Sync evaluation for pack workers.
+#![recursion_limit = "256"]
+
+//! **The `SpecTcl` corpus-validation harness** — every `.tclspec` the repo
+//! ships, loaded, installed, analysed, and run through the sandboxed hook
+//! host, plus the hostile pack that proves containment.
+//!
+//! `docs/design/registry/spec-packs.md` states the guarantees this file turns into a
+//! gate. Per pack:
+//!
+//! 1. **Load** through the real loader ([`tcl_spectcl::pack::load`]) with
+//!    **zero unexpected notices**. What counts as expected is
+//!    `spec_corpus_baseline.txt` beside this file — one accepted notice per
+//!    line, regenerated with `SPECTCL_CORPUS_BLESS=1`.
+//! 2. **Install** into a real per-profile registry through the real install
+//!    path, then run the **compiler/analyser and the optimiser** over corpus
+//!    Tcl.
+//! 3. **Exercise the hooks through the sandboxed host** — `tcl-spec-hooks`
+//!    with `HostConfig::default()`, so the shipped budgets and the shipped
+//!    quarantine policy are what run. No script error, quarantine, or crash
+//!    record may occur for a shipped pack.
+//! 4. **Report** commands loaded, notices, successful/attempted hook calls,
+//!    host errors, quarantines, and wall-clock load + analysis time, per pack.
+//!
+//! ## Why the packs are loaded one file at a time
+//!
+//! A pack is a logical unit, not a file, and ten of the twelve ports under
+//! `docs/design/spec-dsl-examples/` declare `speclib tcl` (the other two are
+//! `speclib tcllib` and `speclib f5-irules`, and `snit-type.tclspec` shares
+//! `tcllib` with the external draft) — merging them would
+//! produce one synthetic "tcl" pack that exists on nobody's disk, with
+//! duplicate-definition notices that say nothing about any real pack. Each
+//! file is therefore its own pack set here, which is also the unit the report
+//! is keyed by.
+//!
+//! ## Why the ports are installed `-override`
+//!
+//! The shipped collision policy is *shipped wins unless the pack says
+//! `-override`*, and no example port declares `-override` — they are ports of
+//! shipped specs, so installing them naturally is a no-op and step 2 would be
+//! vacuous for eleven of the twenty-two packs. The harness therefore reports
+//! the natural outcome ([`tcl_spectcl::pack::collision_notices`], the
+//! `collide` column) **and** installs with the override flag forced on, so the
+//! analyser reads the *pack's* specs and the *pack's* hook bodies run. Both
+//! numbers are in the report; neither is hidden.
+//!
+//! ## Corpus
+//!
+//! `samples/` is the in-repo corpus: 82 `.tcl` files and 15 `.irul` iRules. A
+//! pack takes the corpus files that mention one of its commands — a
+//! **word-boundary text match**, not resolution, so a vendor pack owning a
+//! short generic name (`eda_mentor`'s `run`, `add`) picks up sample files that
+//! merely contain the word. That over-selects rather than under-selects, which
+//! is the safe direction for a harness whose job is to run the analyser over
+//! more code, not less; the `corpus` column is therefore an upper bound on
+//! genuinely relevant files, and the per-pack list below the table names every
+//! one so the claim can be checked. For
+//! a pack whose commands appear nowhere — every EDA vendor pack, and every
+//! external draft — the harness **synthesises** an exercising call per command
+//! from that command's own arity and argument roles, and the report says how
+//! many calls were synthesised versus how many corpus files were real.
+//!
+//! ### The `tmp/` corpus is opt-in
+//!
+//! A box that has run the source-fetch hook has five full Tcl source trees
+//! under `tmp/` — ~320 further `.tcl` files of real library code, roughly
+//! fifteen times the committed corpus. Absorbing them silently turned this test
+//! into a ten-minute sweep that then tripped its own watchdog, and it did so on
+//! developer and agent machines only: CI checkouts have no `tmp/`, so CI never
+//! saw it. The `tmp/` half is therefore behind an explicit opt-in:
+//!
+//! ```text
+//! SPECTCL_CORPUS_TMP=1 cargo test -p tcl-spectcl --test spec_corpus
+//! ```
+//!
+//! Without it the harness draws on `samples/` alone, which is exactly what CI
+//! exercises and what `spec_corpus_baseline.txt` pins — the load, install,
+//! hook-host and containment guarantees are all reached by the committed
+//! corpus. The `tmp/` sweep only adds *more third-party Tcl to analyse*, which
+//! is `xtask fp-sweep`'s job; [`MAX_CORPUS_FILES_PER_PACK`] says the same thing
+//! ("the cap keeps the harness a test rather than a sweep"). The test stays
+//! un-`#[ignore]`d in its fast, samples-only form; the environment variable is
+//! the opt-in to the big corpus, and the report names which corpora were drawn
+//! on either way.
+//!
+//! Set `SPECTCL_CORPUS_DIFF=1` to run the legacy two-unit path alongside the
+//! shared-unit path through the exact gate and compare a deterministic semantic
+//! snapshot of every per-pack report. This doubles the gate and its watchdog
+//! budget intentionally; the normal run remains single-path.
+//!
+//! ## Containment
+//!
+//! [`a_hostile_pack_degrades_to_abstention_and_never_hangs`] is the negative
+//! half: `tests/fixtures/hostile.tclspec` declares an unbounded loop, a
+//! dispatch-heavy fold, and a body the engine panics on. Every test body here
+//! runs on a watchdogged worker thread, so a hook that genuinely hung would
+//! fail the suite rather than wedge it.
+
+use std::cell::Cell;
+use std::collections::{BTreeMap, HashSet};
+use std::fmt::Write as _;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::RecvTimeoutError;
+use std::time::{Duration, Instant};
+
+use tcl_compiler::analyser::{Analyser, types::Diagnostic};
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::optimiser::{Optimisation, optimise_raw, optimise_unit_raw};
+use tcl_engine_api::{Budget, CompileUnit, Engine, EngineError, HostCommand, Value};
+use tcl_engine_tclvm::TclVmEngine;
+use tcl_registry::arg_role::ArgRole;
+use tcl_registry::arity::Arity;
+use tcl_registry::model::ingress::static_document_context_for_profile as ctx_for;
+use tcl_registry::pack_hooks;
+use tcl_registry::spec::CommandSpec;
+use tcl_spec_hooks::{CrashRecord, HookHost};
+use tcl_spectcl::discovery::{Origin, PackFile, Tier};
+use tcl_spectcl::golden::ShippedPackFile;
+use tcl_spectcl::hooks;
+use tcl_spectcl::pack::PackSet;
+
+// Where things are
+
+/// The repository root — this crate is `rust/tcl-spectcl`.
+fn repo_root() -> PathBuf {
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    std::fs::canonicalize(manifest.join("../.."))
+        .expect("the repository root is two levels above this crate")
+}
+
+/// The baseline of accepted load notices, beside this file.
+fn baseline_path() -> PathBuf {
+    PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../tcl-spectcl"))
+        .join("tests/spec_corpus_baseline.txt")
+}
+
+fn relative(path: &Path, root: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .display()
+        .to_string()
+        .replace('\\', "/")
+}
+
+// The inventory: every `.tclspec` the repo ships. Paths and their discovery
+// tier/origin/dialect metadata come from `tcl_spectcl::golden`, the same owner
+// used by the loader, golden, upgrade, and real-Tcl suites.
+
+// The corpus
+
+/// Which corpus a dialect draws from: iRules read `.irul`, everything else
+/// reads `.tcl`.
+fn corpus_family(dialect: &str) -> &'static str {
+    if dialect == "f5-irules" {
+        "irul"
+    } else {
+        "tcl"
+    }
+}
+
+/// A corpus file: its path, its text, and the extension family it belongs to.
+struct CorpusFile {
+    path: PathBuf,
+    text: String,
+    family: &'static str,
+    /// Every maximal identifier run in `text`, built once when the file is
+    /// read.
+    ///
+    /// [`mentions`] asks whether a command name occurs with no identifier
+    /// character on either side — i.e. whether it *is* one of these runs — so
+    /// the set answers it with a hash lookup.  Scanning `text` afresh per
+    /// candidate name instead made the pack loop quadratic in the corpus: every
+    /// one of the ~20 packs re-scanned all ~400 files once per command it
+    /// declares, which is gigabytes of `match_indices` for a question that does
+    /// not depend on the pack at all.
+    tokens: HashSet<String>,
+}
+
+/// Every maximal run of identifier characters in `text` — the token alphabet
+/// [`mentions`] defines its word boundaries against.
+fn identifier_tokens(text: &str) -> HashSet<String> {
+    text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == ':'))
+        .filter(|tok| !tok.is_empty())
+        .map(str::to_owned)
+        .collect()
+}
+
+/// Directories the corpus walk never descends into.
+const SKIP_DIRECTORY_NAMES: &[&str] = &[".git", "node_modules", "target", "build", "dist"];
+
+/// The largest corpus file the harness will read. A fetched Tcl source tree in
+/// `tmp/` can hold generated files far larger than anything a spec pack
+/// meaningfully exercises.
+const MAX_CORPUS_BYTES: u64 = 256 * 1024;
+
+/// How many corpus files one pack analyses. The cap keeps the harness a test
+/// rather than a sweep: `xtask fp-sweep` is the unbounded corpus tool.
+const MAX_CORPUS_FILES_PER_PACK: usize = 24;
+
+fn walk_corpus(dir: &Path, into: &mut Vec<CorpusFile>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut paths: Vec<PathBuf> = entries.filter_map(Result::ok).map(|e| e.path()).collect();
+    paths.sort();
+    for path in paths {
+        if path.is_dir() {
+            let skip = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| SKIP_DIRECTORY_NAMES.contains(&name));
+            if !skip {
+                walk_corpus(&path, into);
+            }
+            continue;
+        }
+        let family = match path.extension().and_then(|ext| ext.to_str()) {
+            Some("tcl") => "tcl",
+            Some("irul") => "irul",
+            _ => continue,
+        };
+        if std::fs::metadata(&path).is_ok_and(|meta| meta.len() > MAX_CORPUS_BYTES) {
+            continue;
+        }
+        if let Ok(text) = std::fs::read_to_string(&path) {
+            let tokens = identifier_tokens(&text);
+            into.push(CorpusFile {
+                path,
+                text,
+                family,
+                tokens,
+            });
+        }
+    }
+}
+
+/// The environment variable that opts the fetched `tmp/` source trees into the
+/// corpus. See this file's header for why they are not in it by default.
+const TMP_CORPUS_ENV: &str = "SPECTCL_CORPUS_TMP";
+
+/// What the `tmp/` half of the corpus contributed to this run.
+#[derive(Clone, Copy)]
+enum TmpCorpus {
+    /// The opt-in was set and a fetched source tree was there to walk.
+    Included,
+    /// A fetched source tree is present, but without the opt-in it is left
+    /// alone — the default run is the committed corpus CI exercises.
+    SkippedNotOptedIn,
+    /// No fetched source tree on this box; the opt-in would find nothing.
+    Absent,
+}
+
+impl TmpCorpus {
+    /// The report's one-line account of the `tmp/` half.
+    fn describe(self) -> &'static str {
+        match self {
+            Self::Included => "present and included",
+            Self::SkippedNotOptedIn => {
+                "present but not walked — set SPECTCL_CORPUS_TMP=1 for the full sweep"
+            }
+            Self::Absent => "absent — no fetched source trees, so nothing was drawn from it",
+        }
+    }
+}
+
+/// Has the caller asked for the fetched `tmp/` source trees?
+///
+/// Any non-empty value other than `0` counts, so `SPECTCL_CORPUS_TMP=1` reads
+/// the way the header documents it without `SPECTCL_CORPUS_TMP=0` silently
+/// meaning the opposite of what it says.
+fn opted_into_tmp_corpus() -> bool {
+    std::env::var_os(TMP_CORPUS_ENV).is_some_and(|value| !value.is_empty() && value != "0")
+}
+
+/// The in-repo corpus, plus `tmp/` when a fetched source tree is present *and*
+/// the caller opted into it.
+fn corpus(root: &Path) -> (Vec<CorpusFile>, TmpCorpus) {
+    let mut files = Vec::new();
+    walk_corpus(&root.join("samples"), &mut files);
+    let tmp = root.join("tmp");
+    let status = if tmp.is_dir() {
+        if opted_into_tmp_corpus() {
+            walk_corpus(&tmp, &mut files);
+            TmpCorpus::Included
+        } else {
+            TmpCorpus::SkippedNotOptedIn
+        }
+    } else {
+        TmpCorpus::Absent
+    };
+    (files, status)
+}
+
+/// Does `file` call `name` as a command word — i.e. does the name occur with
+/// no identifier character on either side?
+///
+/// A plain `contains` would match `if` inside `notify`, which would hand every
+/// pack the entire corpus and make the "relevant corpus" column meaningless.
+fn mentions(file: &CorpusFile, name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
+    // A name bounded by non-identifier characters on both sides *is* a maximal
+    // identifier run, so membership in the file's precomputed token set is the
+    // same question — `::` included, so `struct::tree` still does not match
+    // inside `struct::treeql`.
+    file.tokens.contains(name)
+}
+
+// Synthesising an exercising script for a command with no corpus
+
+/// A valid argument count for `arity`, biased towards two so a resolver has
+/// something to resolve.
+fn exercising_argc(arity: Arity) -> u16 {
+    let mut count = arity.min.max(2).min(arity.max).max(arity.min);
+    if arity.step > 1 {
+        let on_step = |count: u16| (count - arity.min).is_multiple_of(arity.step);
+        while count < arity.max && !on_step(count) {
+            count += 1;
+        }
+        if !on_step(count) {
+            count = arity.min;
+        }
+    }
+    count
+}
+
+/// A literal word that reads as `role` — the fold families' precondition is
+/// that every word is literal, so nothing here is a substitution.
+fn word_for(role: Option<ArgRole>, index: u16) -> String {
+    match role {
+        Some(ArgRole::Body) => "{ set inner 1 }".to_owned(),
+        Some(ArgRole::Expr) => "{1 + 1}".to_owned(),
+        Some(ArgRole::ParamList) => "{a b}".to_owned(),
+        Some(ArgRole::LoopVarList) => "{item}".to_owned(),
+        Some(ArgRole::VarWrite | ArgRole::VarRead) => format!("v{index}"),
+        Some(ArgRole::CommandPrefix) => "puts".to_owned(),
+        Some(ArgRole::Pattern) => "p*".to_owned(),
+        Some(ArgRole::Channel) => "stdout".to_owned(),
+        Some(ArgRole::Index) => "0".to_owned(),
+        Some(ArgRole::OptionTerminator) => "--".to_owned(),
+        _ => format!("w{index}"),
+    }
+}
+
+fn role_at(roles: &[(u8, ArgRole)], index: u16) -> Option<ArgRole> {
+    u8::try_from(index)
+        .ok()
+        .and_then(|index| roles.iter().find(|(at, _)| *at == index).map(|(_, r)| *r))
+}
+
+fn arguments(roles: &[(u8, ArgRole)], count: u16) -> String {
+    (0..count)
+        .map(|index| word_for(role_at(roles, index), index))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// One exercising call per declared form of `spec`: the bare command, and one
+/// call per subcommand it declares.
+///
+/// Built from the command's *own* arity and argument roles — the synopsis in
+/// other words — which is exactly what a vendor pack with no corpus can be
+/// held to.
+fn synthesise(spec: &CommandSpec) -> Vec<String> {
+    let mut calls = Vec::new();
+    if spec.subcommands.is_empty() {
+        let count = exercising_argc(spec.arity);
+        calls.push(format!(
+            "{} {}",
+            spec.name,
+            arguments(spec.arg_roles, count)
+        ));
+    } else {
+        for sub in spec.subcommands {
+            let count = exercising_argc(sub.arity);
+            calls.push(format!(
+                "{} {} {}",
+                spec.name,
+                sub.name,
+                arguments(sub.arg_roles, count)
+            ));
+        }
+    }
+    calls.into_iter().map(|c| c.trim_end().to_owned()).collect()
+}
+
+/// How many synthesised calls go into one analysed script. This keeps the
+/// largest shipped pack to four fully analysed scripts while retaining a
+/// bounded script size.
+const SYNTHESISED_CALLS_PER_SCRIPT: usize = 256;
+
+// The engine wrapper: counts attempted and successful invocations, and
+// injects the one panic no Tcl body can be trusted to produce
+
+/// A body carrying this marker panics at the engine boundary.
+///
+/// The containment guarantee is about the *host*, not about the absence of a
+/// VM bug, so the panic arm cannot be written in Tcl against a correct engine.
+/// Injecting it here drives the identical `catch_unwind` path a real panic
+/// would, under the real loader, the real slot plan, and the real host.
+const PANIC_MARKER: &str = "HARNESS-PANIC-INJECT";
+
+#[derive(Default)]
+struct EngineStats {
+    attempts: Cell<u64>,
+    successes: Cell<u64>,
+}
+
+/// `tcl-vm`, wrapped so the harness can report how many hook bodies actually
+/// ran. Every other obligation is delegated untouched — this is the shipped
+/// engine, with a counter.
+struct CountingEngine {
+    inner: TclVmEngine,
+    stats: Rc<EngineStats>,
+}
+
+impl Engine for CountingEngine {
+    type Handle = (bool, <TclVmEngine as Engine>::Handle);
+
+    fn name(&self) -> &'static str {
+        self.inner.name()
+    }
+
+    fn define_command(
+        &mut self,
+        name: &str,
+        command: Rc<dyn HostCommand>,
+    ) -> Result<(), EngineError> {
+        self.inner.define_command(name, command)
+    }
+
+    fn restrict_commands(&mut self, allowed: &[&str]) -> Result<(), EngineError> {
+        self.inner.restrict_commands(allowed)
+    }
+
+    fn compile(&mut self, unit: CompileUnit<'_>) -> Result<Self::Handle, EngineError> {
+        let injects_panic = unit.body.contains(PANIC_MARKER);
+        Ok((injects_panic, self.inner.compile(unit)?))
+    }
+
+    fn invoke(&mut self, handle: &Self::Handle, arguments: &[Value]) -> Result<Value, EngineError> {
+        self.stats.attempts.set(self.stats.attempts.get() + 1);
+        assert!(!handle.0, "hook body requested an engine panic");
+        let result = self.inner.invoke(&handle.1, arguments);
+        if result.is_ok() {
+            self.stats.successes.set(self.stats.successes.get() + 1);
+        }
+        result
+    }
+
+    fn set_budget(&mut self, budget: Budget) -> Result<(), EngineError> {
+        self.inner.set_budget(budget)
+    }
+
+    fn set_release(&mut self, profile: &str) -> Result<(), EngineError> {
+        self.inner.set_release(profile)
+    }
+
+    fn confine_stores(&mut self) -> Result<(), EngineError> {
+        self.inner.confine_stores()
+    }
+
+    fn commands_spent(&self) -> Option<u64> {
+        self.inner.commands_spent()
+    }
+}
+
+/// A host with the **shipped** configuration — default budgets, default
+/// quarantine policy — running the shipped engine behind the counter.
+fn counting_host(stats: &Rc<EngineStats>) -> HookHost<CountingEngine> {
+    let stats = Rc::clone(stats);
+    HookHost::new(move || CountingEngine {
+        inner: TclVmEngine::new(),
+        stats: Rc::clone(&stats),
+    })
+}
+
+// The per-pack result
+
+struct PackReport {
+    file: String,
+    pack: String,
+    dialect: &'static str,
+    declared: usize,
+    installed: usize,
+    gated_out: usize,
+    collisions: usize,
+    notices: Vec<String>,
+    hook_bodies: usize,
+    hook_slots: usize,
+    hook_attempts: u64,
+    hook_successes: u64,
+    hook_errors: Vec<String>,
+    quarantined: usize,
+    crashes: Vec<CrashRecord>,
+    corpus_files: usize,
+    corpus_paths: Vec<String>,
+    synthesised_calls: usize,
+    diagnostics: usize,
+    optimisations: usize,
+    analysis_snapshots: Vec<AnalysisSnapshot>,
+    analysis_fallbacks: Vec<String>,
+    load: Duration,
+    analysis: Duration,
+    unresolved: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AnalysisSnapshot {
+    /// A corpus path, or the deterministic range of synthesised calls in the
+    /// analysed batch.
+    input: String,
+    diagnostics: Vec<Diagnostic>,
+    optimisations: Vec<Optimisation>,
+}
+
+impl PackReport {
+    fn row(&self) -> String {
+        format!(
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {}/{} | {}/{} | {} | {} | {} | {} | {} | {:.1} | {:.1} |",
+            self.file,
+            self.pack,
+            self.dialect,
+            self.declared,
+            self.installed,
+            self.gated_out,
+            self.collisions,
+            self.notices.len(),
+            self.hook_slots,
+            self.hook_bodies,
+            self.hook_successes,
+            self.hook_attempts,
+            self.hook_errors.len(),
+            self.quarantined,
+            self.crashes.len(),
+            self.corpus_files,
+            self.synthesised_calls,
+            self.load.as_secs_f64() * 1000.0,
+            self.analysis.as_secs_f64() * 1000.0,
+        )
+    }
+}
+
+/// A pack declaring executable hook bodies must exercise at least one through
+/// the live registry consumers. Binding every slot is necessary but not
+/// sufficient: a consumer-dispatch regression could otherwise turn this
+/// corpus into a successful no-op.
+fn require_live_hook_execution(report: &PackReport, failures: &mut Vec<String>) {
+    if report.hook_bodies > 0 && report.hook_successes == 0 {
+        failures.push(format!(
+            "{}: all {} declared hook bodies produced {} bound slots, but corpus and \
+             synthesised calls made {} attempt(s) with no successful invocation — shipped \
+             hook execution must not be vacuous",
+            report.file, report.hook_bodies, report.hook_slots, report.hook_attempts
+        ));
+    }
+    for error in &report.hook_errors {
+        failures.push(format!(
+            "{}: live hook returned a script error and abstained: {error}",
+            report.file
+        ));
+    }
+}
+
+const HEADER: &str = "\
+| pack file | speclib | dialect | cmds | inst | gated | collide | notices | hooks bound/declared | VM invocations successful/attempted | errors | quar | crash | corpus | synth | load ms | analyse ms |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|";
+
+fn render(reports: &[PackReport], tmp: TmpCorpus) -> String {
+    let mut out = String::new();
+    out.push_str("\nSpecTcl corpus validation — per pack\n\n");
+    out.push_str(HEADER);
+    out.push('\n');
+    for report in reports {
+        out.push_str(&report.row());
+        out.push('\n');
+    }
+    out.push_str("\nCorpus drawn on, per pack\n\n");
+    for report in reports {
+        let _ = writeln!(
+            out,
+            "- {}: {}{}",
+            report.file,
+            if report.corpus_paths.is_empty() {
+                "no corpus file mentions any of its commands".to_owned()
+            } else {
+                report.corpus_paths.join(", ")
+            },
+            if report.synthesised_calls > 0 {
+                format!(
+                    " (+{} synthesised call(s) from the pack's own arity/roles)",
+                    report.synthesised_calls
+                )
+            } else {
+                String::new()
+            }
+        );
+    }
+
+    let commands: usize = reports.iter().map(|r| r.declared).sum();
+    let attempts: u64 = reports.iter().map(|r| r.hook_attempts).sum();
+    let successes: u64 = reports.iter().map(|r| r.hook_successes).sum();
+    let bodies: usize = reports.iter().map(|r| r.hook_bodies).sum();
+    let load: f64 = reports.iter().map(|r| r.load.as_secs_f64()).sum();
+    let analysis: f64 = reports.iter().map(|r| r.analysis.as_secs_f64()).sum();
+    let diagnostics: usize = reports.iter().map(|r| r.diagnostics).sum();
+    let optimisations: usize = reports.iter().map(|r| r.optimisations).sum();
+    let _ = write!(
+        out,
+        "\n{} packs, {commands} commands declared, {bodies} hook bodies, \
+         {successes}/{attempts} successful/attempted VM hook invocations, \
+         {diagnostics} diagnostics, \
+         {optimisations} optimisations.\n\
+         load {:.1} ms, analysis {:.1} ms, total {:.1} ms.\n\
+         corpus: samples/ (in-repo); tmp/ {}.\n",
+        reports.len(),
+        load * 1000.0,
+        analysis * 1000.0,
+        (load + analysis) * 1000.0,
+        tmp.describe(),
+    );
+    out
+}
+
+// The harness proper
+
+fn load_one(pack: &ShippedPackFile) -> (PackSet, Duration) {
+    let file = PackFile {
+        tier: pack.tier,
+        path: pack.path.clone(),
+        origin: pack.origin,
+        dependency_tier: None,
+    };
+    let started = Instant::now();
+    let set = tcl_spectcl::pack::load(std::slice::from_ref(&file));
+    (set, started.elapsed())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AnalysisPath {
+    Legacy,
+    Shared,
+    SharedProfileMismatch,
+    SharedBuildFallback,
+    SharedAnalyserFallback,
+    SharedDiagnosticsLegacyOptimiser,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct AnalysisOutput {
+    path: AnalysisPath,
+    diagnostics: Vec<Diagnostic>,
+    optimisations: Vec<Optimisation>,
+}
+
+/// The legacy path: the analyser and raw optimiser each build their own
+/// whole-file compilation unit.
+fn analyse_legacy(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
+    let mut analyser = Analyser::new().with_pack_overlay(overlay);
+    let result = analyser.analyse(source, dialect);
+    let registry = std::sync::Arc::clone(
+        tcl_registry::model::ingress::resolve_environment(dialect)
+            .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .expect("the corpus installs the overlay before it asks")
+            .commands(),
+    );
+    let optimisations = optimise_raw(source, &registry, Some(dialect));
+    AnalysisOutput {
+        path: AnalysisPath::Legacy,
+        diagnostics: result.diagnostics,
+        optimisations,
+    }
+}
+
+/// Analyse and optimise one source file from the same compilation unit.
+///
+/// `build_for_profile` + `with_interprocedural` deliberately mirrors the
+/// optimiser's typed entry point.  Supplying that unit through the analyser's
+/// CFG/SSA seam means the expensive lowering, CFG, SSA and interprocedural
+/// work is done once, while `optimise_unit_raw` retains the raw (pre-overlap)
+/// optimiser result used by this corpus report.
+fn analyse_shared(source: &str, dialect: &str, overlay: u64) -> AnalysisOutput {
+    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
+    let registry = Arc::clone(
+        environment
+            .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .expect("the corpus installs the overlay before it asks")
+            .commands(),
+    );
+    let unit_profile = environment.unit_profile();
+    let optimiser_profile = environment.analyser_profile();
+
+    // `optimise_raw` builds its own unit from the analyser profile. Sharing a
+    // unit with a different profile would therefore change the Tk path (Tk's
+    // unit profile is intentionally distinct from its analyser profile).
+    // Keep the separate two-unit path until both entry points can consume the same
+    // profile without losing the Tk grammar contract.
+    if !std::ptr::eq(unit_profile, optimiser_profile) {
+        let mut output = analyse_legacy(source, dialect, overlay);
+        output.path = AnalysisPath::SharedProfileMismatch;
+        return output;
+    }
+
+    // Contain only the shared-unit operations. A malformed corpus document
+    // must not take down the sweep, but a panic in the ordinary legacy path
+    // remains visible to the harness rather than being turned into an empty
+    // report.
+    let Ok(unit) = catch_unwind(AssertUnwindSafe(|| {
+        Arc::new(
+            CompilationUnit::build_for_profile(source, &registry, false, unit_profile)
+                .with_interprocedural(&registry, Some(unit_profile)),
+        )
+    })) else {
+        let mut output = analyse_legacy(source, dialect, overlay);
+        output.path = AnalysisPath::SharedBuildFallback;
+        return output;
+    };
+
+    let mut analyser = Analyser::new().with_pack_overlay(overlay);
+    let Ok(result) = catch_unwind(AssertUnwindSafe(|| {
+        analyser.set_cu_override(Arc::clone(&unit));
+        analyser.analyse(source, dialect)
+    })) else {
+        let mut output = analyse_legacy(source, dialect, overlay);
+        output.path = AnalysisPath::SharedAnalyserFallback;
+        return output;
+    };
+
+    let Ok(optimisations) = catch_unwind(AssertUnwindSafe(|| {
+        optimise_unit_raw(&unit, &registry, Some(optimiser_profile))
+    })) else {
+        // The shared optimiser is an optional consumer of the unit. Keep
+        // diagnostics produced from that unit, and use the established
+        // raw optimiser as the only fallback; do not catch a panic from
+        // this ordinary legacy path.
+        return AnalysisOutput {
+            path: AnalysisPath::SharedDiagnosticsLegacyOptimiser,
+            diagnostics: result.diagnostics,
+            optimisations: optimise_raw(source, &registry, Some(dialect)),
+        };
+    };
+    AnalysisOutput {
+        path: AnalysisPath::Shared,
+        diagnostics: result.diagnostics,
+        optimisations,
+    }
+}
+
+fn canonicalise_optimisations(optimisations: &mut [Optimisation]) {
+    optimisations.sort_by(|a, b| {
+        (
+            a.span.start(),
+            a.span.end(),
+            a.code,
+            &a.message,
+            &a.replacement,
+            a.group,
+            a.hint_only,
+        )
+            .cmp(&(
+                b.span.start(),
+                b.span.end(),
+                b.code,
+                &b.message,
+                &b.replacement,
+                b.group,
+                b.hint_only,
+            ))
+    });
+}
+
+fn canonicalise_diagnostics(diagnostics: &mut [Diagnostic]) {
+    diagnostics.sort_by(|a, b| {
+        a.span
+            .start()
+            .cmp(&b.span.start())
+            .then_with(|| a.span.end().cmp(&b.span.end()))
+            .then_with(|| a.code.cmp(&b.code))
+            .then_with(|| a.severity.as_str().cmp(b.severity.as_str()))
+            .then_with(|| a.message.cmp(&b.message))
+            .then_with(|| format!("{:?}", a.fixes).cmp(&format!("{:?}", b.fixes)))
+    });
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AnalysisMode {
+    Legacy,
+    Shared,
+}
+
+fn analyse_with_mode(
+    source: &str,
+    dialect: &str,
+    overlay: u64,
+    mode: AnalysisMode,
+) -> AnalysisOutput {
+    match mode {
+        AnalysisMode::Legacy => analyse_legacy(source, dialect, overlay),
+        AnalysisMode::Shared => analyse_shared(source, dialect, overlay),
+    }
+}
+
+/// Keep the legacy and shared pipelines permanently equivalent on a small,
+/// deterministic set of inputs. The full-corpus report comparison remains
+/// opt-in (`SPECTCL_CORPUS_DIFF=1`) so the normal performance gate still builds
+/// one unit per document, while this always-run test covers the profile seams
+/// and proves that Tk's distinct unit/analyser profiles take the legacy route.
+#[test]
+fn shared_unit_matches_legacy_for_representative_profiles() {
+    crate::install_surfaces();
+    let cases = [
+        (
+            "tcl8.6",
+            "set value [expr {1 + 2}]\nif {$value} {set result yes}\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "tcl9.0",
+            "proc choose {value} { if {$value} { return [string toupper yes] } }\nchoose 1\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "f5-irules",
+            "when HTTP_REQUEST { HTTP::respond 200 }\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "jim",
+            "set value 1\nif {$value} { puts yes }\n",
+            AnalysisPath::Shared,
+        ),
+        (
+            "tk",
+            "package require Tk\nbutton .b\npack .b\nset ${a{b}c} 1\n",
+            AnalysisPath::SharedProfileMismatch,
+        ),
+    ];
+
+    for (dialect, source, expected_path) in cases {
+        let legacy = analyse_legacy(source, dialect, 0);
+        let shared = analyse_shared(source, dialect, 0);
+        assert_eq!(&shared.path, &expected_path, "{dialect} analysis route");
+        assert_eq!(
+            shared.diagnostics, legacy.diagnostics,
+            "{dialect} diagnostics"
+        );
+
+        let mut shared_optimisations = shared.optimisations;
+        let mut legacy_optimisations = legacy.optimisations;
+        canonicalise_optimisations(&mut shared_optimisations);
+        canonicalise_optimisations(&mut legacy_optimisations);
+        assert_eq!(
+            shared_optimisations, legacy_optimisations,
+            "{dialect} raw optimisations"
+        );
+    }
+}
+
+#[test]
+fn shared_analysis_fallbacks_are_never_silent() {
+    crate::install_surfaces();
+    let cases = [
+        (AnalysisPath::Shared, false),
+        (AnalysisPath::SharedProfileMismatch, false),
+        (AnalysisPath::SharedBuildFallback, true),
+        (AnalysisPath::SharedAnalyserFallback, true),
+        (AnalysisPath::SharedDiagnosticsLegacyOptimiser, true),
+    ];
+
+    for (path, expected_fallback) in cases {
+        let mut summary = AnalysisSummary::default();
+        record_analysis(
+            &mut summary,
+            "fixture.tcl".to_owned(),
+            AnalysisOutput {
+                path,
+                diagnostics: Vec::new(),
+                optimisations: Vec::new(),
+            },
+            AnalysisMode::Shared,
+        );
+        assert_eq!(
+            !summary.fallbacks.is_empty(),
+            expected_fallback,
+            "{path:?} fallback classification"
+        );
+    }
+}
+
+/// The semantic part of a corpus report. Wall-clock timings are intentionally
+/// absent: they are useful telemetry, but cannot be expected to match between
+/// two sequential runs. Everything else is an observable gate result and is
+/// compared, including the selected file list and the full notices/errors.
+/// Hook attempt/success counters are deliberately telemetry-only: sharing the
+/// unit is expected to remove repeated hook calls while preserving their
+/// answers, and the shared-unit path's performance win is measured by that
+/// reduction.
+#[derive(Debug, PartialEq, Eq)]
+struct PackSnapshot {
+    file: String,
+    pack: String,
+    dialect: &'static str,
+    declared: usize,
+    installed: usize,
+    gated_out: usize,
+    collisions: usize,
+    notices: Vec<String>,
+    hook_bodies: usize,
+    hook_slots: usize,
+    hook_errors: Vec<String>,
+    quarantined: usize,
+    crashes: Vec<CrashRecord>,
+    corpus_files: usize,
+    corpus_paths: Vec<String>,
+    synthesised_calls: usize,
+    diagnostics: usize,
+    optimisations: usize,
+    analysis_snapshots: Vec<AnalysisSnapshot>,
+    analysis_fallbacks: Vec<String>,
+    unresolved: Vec<String>,
+}
+
+impl PackReport {
+    fn snapshot(&self) -> PackSnapshot {
+        PackSnapshot {
+            file: self.file.clone(),
+            pack: self.pack.clone(),
+            dialect: self.dialect,
+            declared: self.declared,
+            installed: self.installed,
+            gated_out: self.gated_out,
+            collisions: self.collisions,
+            notices: self.notices.clone(),
+            hook_bodies: self.hook_bodies,
+            hook_slots: self.hook_slots,
+            hook_errors: self.hook_errors.clone(),
+            quarantined: self.quarantined,
+            crashes: self.crashes.clone(),
+            corpus_files: self.corpus_files,
+            corpus_paths: self.corpus_paths.clone(),
+            synthesised_calls: self.synthesised_calls,
+            diagnostics: self.diagnostics,
+            optimisations: self.optimisations,
+            analysis_snapshots: self.analysis_snapshots.clone(),
+            analysis_fallbacks: self.analysis_fallbacks.clone(),
+            unresolved: self.unresolved.clone(),
+        }
+    }
+}
+
+/// Compare the exact semantic report emitted by the shared and legacy
+/// paths. Sorting by pack file makes this a deterministic snapshot even if a
+/// future inventory implementation changes its traversal order.
+fn assert_report_snapshots_equal(shared: &[PackReport], legacy: &[PackReport]) {
+    let mut shared_snapshots: Vec<PackSnapshot> = shared.iter().map(PackReport::snapshot).collect();
+    let mut legacy_snapshots: Vec<PackSnapshot> = legacy.iter().map(PackReport::snapshot).collect();
+    shared_snapshots.sort_by(|a, b| a.file.cmp(&b.file));
+    legacy_snapshots.sort_by(|a, b| a.file.cmp(&b.file));
+    assert_eq!(
+        shared_snapshots, legacy_snapshots,
+        "shared compilation-unit corpus report differs from the pre-#1940 report"
+    );
+}
+
+/// Run the legacy path only when the caller asks for the full before/after
+/// proof. Both reports use the exact inventory, corpus and host lifecycle.
+fn compare_legacy_report(
+    packs: &[ShippedPackFile],
+    root: &Path,
+    corpus: &[CorpusFile],
+    shared: &[PackReport],
+) {
+    if std::env::var_os("SPECTCL_CORPUS_DIFF").is_none() {
+        return;
+    }
+    let legacy: Vec<PackReport> = packs
+        .iter()
+        .map(|pack| run_pack_with_mode(pack, root, corpus, AnalysisMode::Legacy))
+        .collect();
+    assert_report_snapshots_equal(shared, &legacy);
+}
+
+fn validate_reports(reports: &[PackReport]) -> Vec<String> {
+    let mut failures = Vec::new();
+    for report in reports {
+        if report.installed + report.gated_out != report.declared {
+            failures.push(format!(
+                "{}: installed ({}) + gated ({}) does not account for {} declared commands",
+                report.file, report.installed, report.gated_out, report.declared
+            ));
+        }
+        if report.collisions > report.declared {
+            failures.push(format!(
+                "{}: {} collision notices exceed {} declared commands",
+                report.file, report.collisions, report.declared
+            ));
+        }
+        if report.corpus_paths.len() != report.corpus_files {
+            failures.push(format!(
+                "{}: report lists {} selected files but counts {}",
+                report.file,
+                report.corpus_paths.len(),
+                report.corpus_files
+            ));
+        }
+        if report.hook_successes > report.hook_attempts {
+            failures.push(format!(
+                "{}: {} successful hook calls exceed {} attempts",
+                report.file, report.hook_successes, report.hook_attempts
+            ));
+        }
+        if report.quarantined > 0 {
+            failures.push(format!(
+                "{}: {} hook(s) quarantined — a shipped pack must never crash \
+                 or outspend its budget",
+                report.file, report.quarantined
+            ));
+        }
+        for crash in &report.crashes {
+            failures.push(format!(
+                "{}: crash record: {}",
+                report.file,
+                crash.headline()
+            ));
+        }
+        if report.hook_slots != report.hook_bodies {
+            failures.push(format!(
+                "{}: {} declared hook bodies but only {} got a slot — the \
+                 per-family slot budget is exhausted",
+                report.file, report.hook_bodies, report.hook_slots
+            ));
+        }
+        require_live_hook_execution(report, &mut failures);
+        if !report.unresolved.is_empty() {
+            failures.push(format!(
+                "{}: installed but unresolvable in the registry: {}",
+                report.file,
+                report.unresolved.join(", ")
+            ));
+        }
+        if !report.analysis_fallbacks.is_empty() {
+            failures.push(format!(
+                "{}: shared compilation-unit analysis unexpectedly fell back for {}",
+                report.file,
+                report.analysis_fallbacks.join(", ")
+            ));
+        }
+    }
+    failures
+}
+
+/// Every load notice, in the baseline's line format.
+fn notice_lines(set: &PackSet, root: &Path) -> Vec<String> {
+    set.notices
+        .iter()
+        .map(|notice| {
+            format!(
+                "{}\t{:?}\t{}\t{}",
+                relative(&notice.path, root),
+                notice.severity,
+                notice.context,
+                notice.message
+            )
+        })
+        .collect()
+}
+
+/// Hook bodies the pack declares, and how many of them the plan could bind to
+/// a process-wide slot. A difference is slot exhaustion, which the harness
+/// fails on rather than reporting quietly as "fewer hooks".
+fn hook_counts(set: &PackSet, plan: &hooks::HookPlan) -> (usize, usize) {
+    let declared = set
+        .packs
+        .iter()
+        .map(|p| {
+            hooks::programs_of(&p.name, &p.dsl_version, "", &p.commands)
+                .programs
+                .len()
+        })
+        .sum();
+    let bound = plan
+        .packs()
+        .iter()
+        .map(|programs| {
+            programs
+                .programs
+                .iter()
+                .filter(|p| p.slot.is_some())
+                .count()
+        })
+        .sum();
+    (declared, bound)
+}
+
+/// Build the sandboxed host for `plan`, install it on this thread, and return
+/// it with the slots it claimed.
+///
+/// [`counting_host`] is `HookHost::new`, so this is the shipped configuration:
+/// the shipped budgets, `catch_unwind` on every invocation, quarantine on the
+/// first crash.
+fn start_host(
+    plan: &hooks::HookPlan,
+    stats: &Rc<EngineStats>,
+) -> (Rc<HookHost<CountingEngine>>, Vec<pack_hooks::HookSlot>) {
+    let host = Rc::new(counting_host(stats));
+    let mut slots = Vec::new();
+    for programs in plan.packs() {
+        for installation in host.install_pack_hooks(programs.clone()) {
+            if let Some(slot) = installation.slot {
+                slots.push(slot);
+            }
+        }
+    }
+    pack_hooks::install_host(Rc::<HookHost<CountingEngine>>::clone(&host));
+    pack_hooks::clear_cache();
+    (host, slots)
+}
+
+/// How the pack's commands fared in `registry`: installed, held back by the
+/// vendor package gate, or — the failure — installed yet unresolvable.
+fn installation_of(
+    set: &PackSet,
+    profile: &'static tcl_dialect::DialectProfile,
+    registry: &tcl_registry::registry::CommandRegistry,
+) -> (usize, usize, Vec<String>) {
+    let (mut installed, mut gated_out) = (0usize, 0usize);
+    let mut unresolved: Vec<String> = Vec::new();
+    for merged in &set.packs {
+        for command in &merged.commands {
+            if ctx_for(profile).required_package_available(command.spec.required_package) {
+                installed += 1;
+                if registry.get(command.spec.name).is_none() {
+                    unresolved.push(command.spec.name.to_owned());
+                }
+            } else {
+                gated_out += 1;
+            }
+        }
+    }
+    (installed, gated_out, unresolved)
+}
+
+/// The corpus files that call one of the pack's commands, and a synthesised
+/// call for every command none of them reached.
+fn corpus_and_synthesis<'c>(
+    set: &PackSet,
+    corpus: &'c [CorpusFile],
+    family: &str,
+) -> (Vec<&'c CorpusFile>, Vec<String>) {
+    let names: Vec<&str> = set
+        .packs
+        .iter()
+        .flat_map(|p| p.commands.iter().map(|c| c.spec.name))
+        .collect();
+    let mut selected: Vec<&CorpusFile> = Vec::new();
+    let mut covered: Vec<&str> = Vec::new();
+    for file in corpus.iter().filter(|f| f.family == family) {
+        let hits: Vec<&str> = names
+            .iter()
+            .copied()
+            .filter(|name| mentions(file, name))
+            .collect();
+        if hits.is_empty() {
+            continue;
+        }
+        for hit in hits {
+            if !covered.contains(&hit) {
+                covered.push(hit);
+            }
+        }
+        if selected.len() < MAX_CORPUS_FILES_PER_PACK {
+            selected.push(file);
+        }
+    }
+
+    let mut synthesised: Vec<String> = Vec::new();
+    for merged in &set.packs {
+        for command in &merged.commands {
+            if !covered.contains(&command.spec.name) {
+                synthesised.extend(synthesise(command.spec));
+            }
+        }
+    }
+    (selected, synthesised)
+}
+
+#[derive(Debug, Default)]
+struct AnalysisSummary {
+    diagnostics: usize,
+    optimisations: usize,
+    snapshots: Vec<AnalysisSnapshot>,
+    fallbacks: Vec<String>,
+}
+
+fn record_analysis(
+    summary: &mut AnalysisSummary,
+    input: String,
+    mut output: AnalysisOutput,
+    mode: AnalysisMode,
+) {
+    if mode == AnalysisMode::Shared
+        && !matches!(
+            output.path,
+            AnalysisPath::Shared | AnalysisPath::SharedProfileMismatch
+        )
+    {
+        summary
+            .fallbacks
+            .push(format!("{input}: {:?}", output.path));
+    }
+    canonicalise_diagnostics(&mut output.diagnostics);
+    canonicalise_optimisations(&mut output.optimisations);
+    summary.diagnostics += output.diagnostics.len();
+    summary.optimisations += output.optimisations.len();
+    summary.snapshots.push(AnalysisSnapshot {
+        input,
+        diagnostics: output.diagnostics,
+        optimisations: output.optimisations,
+    });
+}
+
+/// Analyse and optimise every selected corpus file and every synthesised
+/// script, retaining canonical records so the differential proof can compare
+/// the actual results rather than only aggregate counts.
+fn analyse_all(
+    selected: &[&CorpusFile],
+    synthesised: &[String],
+    root: &Path,
+    dialect: &str,
+    overlay: u64,
+    mode: AnalysisMode,
+) -> (AnalysisSummary, Duration) {
+    let mut summary = AnalysisSummary::default();
+    let started = Instant::now();
+    for file in selected {
+        let output = analyse_with_mode(&file.text, dialect, overlay, mode);
+        record_analysis(&mut summary, relative(&file.path, root), output, mode);
+    }
+    for (chunk_index, chunk) in synthesised.chunks(SYNTHESISED_CALLS_PER_SCRIPT).enumerate() {
+        let script = format!("{}\n", chunk.join("\n"));
+        let output = analyse_with_mode(&script, dialect, overlay, mode);
+        let start = chunk_index * SYNTHESISED_CALLS_PER_SCRIPT;
+        let end = start + chunk.len();
+        record_analysis(
+            &mut summary,
+            format!("synthesised[{start}..{end}]"),
+            output,
+            mode,
+        );
+    }
+    (summary, started.elapsed())
+}
+
+fn run_pack(pack: &ShippedPackFile, root: &Path, corpus: &[CorpusFile]) -> PackReport {
+    run_pack_with_mode(pack, root, corpus, AnalysisMode::Shared)
+}
+
+/// Run independent overlays concurrently while preserving inventory order in
+/// the returned report. The default is capped at four workers; set to `1` for
+/// the serial control, or `2`/`4` to measure the bounded overlay sweep.
+fn pack_worker_count() -> usize {
+    let default = std::thread::available_parallelism().map_or(1, |count| count.get().min(4));
+    std::env::var("SPECTCL_CORPUS_PACK_THREADS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(default)
+        .clamp(1, 4)
+}
+
+fn run_packs(packs: &[ShippedPackFile], root: &Path, corpus: &[CorpusFile]) -> Vec<PackReport> {
+    let worker_count = pack_worker_count().min(packs.len());
+    if worker_count <= 1 {
+        return packs
+            .iter()
+            .map(|pack| run_pack(pack, root, corpus))
+            .collect();
+    }
+
+    let next = AtomicUsize::new(0);
+    let (tx, rx) = std::sync::mpsc::channel();
+    let mut reports: Vec<Option<PackReport>> = (0..packs.len()).map(|_| None).collect();
+    std::thread::scope(|scope| {
+        for _ in 0..worker_count {
+            let tx = tx.clone();
+            let next = &next;
+            std::thread::Builder::new()
+                .name("spectcl-corpus-pack".to_owned())
+                .stack_size(32 * 1024 * 1024)
+                .spawn_scoped(scope, move || {
+                    loop {
+                        let index = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(pack) = packs.get(index) else {
+                            break;
+                        };
+                        tx.send((index, run_pack(pack, root, corpus)))
+                            .expect("collect pack report");
+                    }
+                })
+                .expect("spawn pack worker");
+        }
+        drop(tx);
+        for (index, report) in rx {
+            reports[index] = Some(report);
+        }
+    });
+    reports
+        .into_iter()
+        .map(|report| report.expect("every pack produced a report"))
+        .collect()
+}
+
+fn run_pack_with_mode(
+    pack: &ShippedPackFile,
+    root: &Path,
+    corpus: &[CorpusFile],
+    mode: AnalysisMode,
+) -> PackReport {
+    let (mut set, load) = load_one(pack);
+    let profile = tcl_spectcl::environment::profile_for_dialect(pack.dialect);
+    let notices = notice_lines(&set, root);
+
+    // The natural collision outcome, recorded before the override flag is
+    // forced — this is what a user installing the pack unchanged would get.
+    let plain_registry = tcl_registry::model::static_context_for(pack.dialect).commands();
+    let collisions = tcl_spectcl::pack::collision_notices(&set, plain_registry).len();
+
+    let declared: usize = set.packs.iter().map(|p| p.commands.len()).sum();
+    let name = set
+        .packs
+        .first()
+        .map_or_else(|| "<none>".to_owned(), |p| p.name.clone());
+
+    let plan = hooks::plan_for(&set);
+    let (hook_bodies, hook_slots) = hook_counts(&set, &plan);
+    let stats = Rc::new(EngineStats::default());
+    let (host, slots) = start_host(&plan, &stats);
+
+    // Force `-override` so the pack's own specs are what the analyser reads.
+    // See this file's header: the natural outcome is the `collide` column.
+    for merged in &mut set.packs {
+        for command in &mut merged.commands {
+            command.overrides_shipped = true;
+        }
+    }
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(pack.dialect, &set);
+    let (installed, gated_out, unresolved) = installation_of(&set, profile, &registry);
+
+    let (selected, synthesised) = corpus_and_synthesis(&set, corpus, corpus_family(pack.dialect));
+    let (analysis_summary, analysis) =
+        analyse_all(&selected, &synthesised, root, pack.dialect, set.key, mode);
+
+    let quarantined = slots
+        .iter()
+        .filter(|slot| host.is_quarantined(**slot))
+        .count();
+    let crashes = host.crash_records();
+    let hook_errors = host.error_log();
+
+    pack_hooks::clear_host();
+    pack_hooks::clear_cache();
+
+    PackReport {
+        file: relative(&pack.path, root),
+        pack: name,
+        dialect: pack.dialect,
+        declared,
+        installed,
+        gated_out,
+        collisions,
+        notices,
+        hook_bodies,
+        hook_slots,
+        hook_attempts: stats.attempts.get(),
+        hook_successes: stats.successes.get(),
+        hook_errors,
+        quarantined,
+        crashes,
+        corpus_files: selected.len(),
+        corpus_paths: selected
+            .iter()
+            .map(|file| relative(&file.path, root))
+            .collect(),
+        synthesised_calls: synthesised.len(),
+        diagnostics: analysis_summary.diagnostics,
+        optimisations: analysis_summary.optimisations,
+        analysis_snapshots: analysis_summary.snapshots,
+        analysis_fallbacks: analysis_summary.fallbacks,
+        load,
+        analysis,
+        unresolved,
+    }
+}
+
+// The notice baseline
+
+const BASELINE_HEADER: &str = "\
+# SpecTcl corpus-validation harness — accepted load notices.
+#
+# Regenerate with:  SPECTCL_CORPUS_BLESS=1 cargo test -p tcl-spectcl --test spec_corpus
+#
+# Every line is one notice the loader emitted for a `.tclspec` the repository
+# ships, in the form
+#
+#     <pack file>\\t<severity>\\t<context>\\t<message>
+#
+# tab-separated, sorted, one line per occurrence — 30 of them today, in seven
+# groups. `tests/spec_corpus.rs`
+# compares the notices of every pack against this file as a multiset and fails
+# on any difference in either direction, so a notice that gets fixed must also
+# be deleted from here — the baseline cannot silently rot into a wildcard.
+#
+# THE LOAD-BEARING FACT, and the reason this file is not simply a mute-button:
+# `specs/` — the eight bundled EDA loadables, the packs an installed tcl-lsp
+# actually loads — appears NOWHERE below. All 776 of their commands load
+# without a single notice. Every entry here belongs to a design artefact under
+# `docs/design/spec-dsl-examples/`, and each is a known, named gap rather than
+# a defect:
+#
+#   `unknown flag … on `arg` dropped` (6, the `apave` and `tcllib` external
+#       drafts' object-class methods) — the drafts spell `arg` columns the
+#       vocabulary does not have (`-body-kind`, `-repeats`, a bare `Plain`, an
+#       inline `row {…}`), dropped exactly as the compatibility policy
+#       promises.
+#
+#   `unknown flag `-readonly` on `option` dropped` (3, tcllib draft) — not a
+#       gap: the draft says so itself at `tcllib.tclspec:288`, \"no field in the
+#       DSL to lower `-readonly` into — written on all three options anyway\".
+#       A marked invention, dropped exactly as the compatibility policy
+#       promises.
+#
+#   `hook body on `method walk` is not yet bindable` (1, tcllib draft) — an
+#       object-class method's hook body has no slot to bind to yet, so the
+#       field abstains.
+#
+#   `names a lowering hook` (5, the `foreach`, `if`, `return`, `switch` and
+#       `upvar` ports) — deliberate. A pack naming a *native* lowering hook
+#       changes how the compiler translates a command, so the loader warns and
+#       installs it anyway. These five ports are ports of shipped specs that
+#       legitimately carry those hooks; a private pack getting the same
+#       warning is being told something true.
+#
+#   `… refused for …` (6, the `return`, `string` and `upvar` ports) — the
+#       stamp rejection rule, working. The ports copy their shipped specs'
+#       codegen-axis stamps (`inline_codegen_hook`, `codegen_hook`, and
+#       `semantic_operation {Intrinsic …}` on `string`'s `length`, `is` and
+#       `range`), and a workspace pack may not stamp at all — only a bundled
+#       pack may, as its `alias_of` target's own. Each stamp is dropped and
+#       said on its command's row; the command loads with every other fact.
+#
+# Adding a line here is therefore an admission with a reason attached. Adding
+# one for a file under `specs/` would be a regression in the only tier that
+# ships.
+";
+
+fn read_baseline() -> Vec<String> {
+    let Ok(text) = std::fs::read_to_string(baseline_path()) else {
+        return Vec::new();
+    };
+    let mut lines: Vec<String> = text
+        .lines()
+        .map(str::trim_end)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(str::to_owned)
+        .collect();
+    lines.sort();
+    lines
+}
+
+fn write_baseline(notices: &[String]) {
+    let mut out = String::from(BASELINE_HEADER);
+    for notice in notices {
+        out.push_str(notice);
+        out.push('\n');
+    }
+    std::fs::write(baseline_path(), out).expect("write the notice baseline");
+}
+
+// The watchdog
+
+/// Run `body` on a worker thread and fail — rather than wedge — if it does not
+/// finish inside `budget`.
+///
+/// A hook host is thread-confined (`Rc`, one VM per pack), so the harness has
+/// to own a thread anyway. Making that thread watchdogged is what turns "a
+/// runaway hook must not hang the process" from a claim into an assertion:
+/// containment failing means this test fails in bounded time.
+///
+/// `overrun` is what an expiry *means* for this particular caller, and callers
+/// differ. For the hostile pack, three 250 ms budgets against a two-minute
+/// watchdog leave no other reading than a hang. For the corpus sweep the
+/// watchdog is a budget over an amount of work that varies with the machine and
+/// with how much corpus was opted into, so an expiry there says "too much work
+/// for this box", not "containment failed" — and reporting the second when the
+/// first happened is how a slow laptop got told it had a hung hook.
+fn with_watchdog<T: Send + 'static>(
+    label: &'static str,
+    budget: Duration,
+    overrun: &'static str,
+    body: impl FnOnce() -> T + Send + 'static,
+) -> T {
+    let (tx, rx) = std::sync::mpsc::channel::<()>();
+    let worker = std::thread::Builder::new()
+        .name(label.to_owned())
+        // Analysis of a real corpus file recurses; the default 2 MiB is the
+        // one thing about this thread that must not differ from a test thread.
+        .stack_size(32 * 1024 * 1024)
+        .spawn(move || {
+            let out = body();
+            let _ = tx.send(());
+            out
+        })
+        .expect("spawn the harness thread");
+    match rx.recv_timeout(budget) {
+        // Disconnected means the worker panicked; join propagates it with the
+        // original message, which is what a caller wants to read.
+        Ok(()) | Err(RecvTimeoutError::Disconnected) => match worker.join() {
+            Ok(out) => out,
+            Err(payload) => std::panic::resume_unwind(payload),
+        },
+        Err(RecvTimeoutError::Timeout) => {
+            panic!("{label} did not finish within {budget:?} — {overrun}")
+        }
+    }
+}
+
+fn corpus_watchdog_budget(include_tmp: bool, differential: bool) -> Duration {
+    let per_sweep = if include_tmp {
+        Duration::from_mins(30)
+    } else {
+        Duration::from_mins(10)
+    };
+    per_sweep.saturating_mul(if differential { 2 } else { 1 })
+}
+
+#[test]
+fn corpus_watchdog_scales_with_work_requested() {
+    crate::install_surfaces();
+    assert_eq!(
+        corpus_watchdog_budget(false, false),
+        Duration::from_mins(10)
+    );
+    assert_eq!(corpus_watchdog_budget(false, true), Duration::from_mins(20));
+    assert_eq!(corpus_watchdog_budget(true, false), Duration::from_mins(30));
+    assert_eq!(corpus_watchdog_budget(true, true), Duration::from_mins(60));
+}
+
+// The tests
+
+/// Replay only three actual samples selected by the shipped string pack.
+/// Existing N17 first-gate diagnostics explain a refusal; the unchanged live
+/// hook requirement still fails if these real consumer inputs invoke no hook.
+#[test]
+fn shipped_string_pack_replays_actual_corpus_first_gates() {
+    crate::install_surfaces();
+    let (report, failures) = with_watchdog(
+        "spectcl-string-first-gates",
+        Duration::from_secs(120),
+        "the three existing string corpus samples exceeded their diagnostic budget",
+        || {
+            let root = repo_root();
+            let packs = tcl_spectcl::golden::shipped_pack_inventory(&root);
+            let pack = packs
+                .iter()
+                .find(|pack| {
+                    pack.path
+                        .ends_with("docs/design/spec-dsl-examples/string.tclspec")
+                })
+                .expect("actual shipped string pack");
+            assert_eq!(pack.dialect, "tcl9.1");
+            let (corpus_files, _) = corpus(&root);
+            let mut text = String::new();
+            let mut failures = Vec::new();
+            for (hook, path, spelling) in [
+                (
+                    "length",
+                    "samples/wasm/t0-straight-line/01_string_interp.tcl",
+                    "[string length $greeting]",
+                ),
+                (
+                    "map",
+                    "samples/diagnostics/W102_subst_injection/example.tcl",
+                    "[string map [list {$name} $name] {Hello, $name}]",
+                ),
+                // The other corpus slices take their subject from `string trim`,
+                // which this pack's own `string` does not declare, or from a
+                // runtime value, so none presents the hook a constant subject.
+                (
+                    "range",
+                    "samples/tcl/14_string_slicing.tcl",
+                    "[string range $greeting 7 end]",
+                ),
+            ] {
+                let sample = corpus_files
+                    .iter()
+                    .find(|file| file.path == root.join(path))
+                    .expect("actual samples corpus member");
+                assert_eq!(sample.family, "tcl");
+                assert!(sample.text.contains(spelling));
+                eprintln!("SPECTCL_STRING_FIRST_GATE_BEGIN hook={hook} source={path}");
+                let report = run_pack(pack, &root, std::slice::from_ref(sample));
+                assert_eq!(report.installed, 1);
+                assert_eq!(report.gated_out, 0);
+                assert_eq!(report.hook_bodies, 3);
+                assert_eq!(report.hook_slots, 3);
+                assert_eq!(report.corpus_paths, vec![path.to_owned()]);
+                assert_eq!(report.synthesised_calls, 0);
+                assert_eq!(report.analysis_fallbacks, [] as [std::string::String; 0]);
+                assert_eq!(report.crashes, [] as [tcl_spec_hooks::CrashRecord; 0]);
+                assert_eq!(report.quarantined, 0);
+                eprintln!(
+                    "SPECTCL_STRING_FIRST_GATE_END hook={hook} successes={} attempts={} optimisations={}",
+                    report.hook_successes, report.hook_attempts, report.optimisations,
+                );
+                writeln!(text, "hook={hook} {}", report.row()).unwrap();
+                require_live_hook_execution(&report, &mut failures);
+            }
+            (text, failures)
+        },
+    );
+    assert!(
+        failures.is_empty(),
+        "{report}\nString pack real-corpus first-gate replay failed:\n{}",
+        failures.join("\n"),
+    );
+}
+
+/// Every shipped `.tclspec`: loaded, installed, analysed against corpus, with
+/// its hooks run through the sandboxed host — and the per-pack report.
+///
+/// Runs against the committed `samples/` corpus by default, which is what CI
+/// exercises; `SPECTCL_CORPUS_TMP=1` adds the fetched trees under `tmp/` for
+/// the full sweep. Run with `-- --nocapture` to see the table on a pass; it is
+/// included in the failure message either way.
+#[test]
+fn every_shipped_tclspec_loads_installs_and_analyses_against_corpus() {
+    crate::install_surfaces();
+    // The watchdog bounds the work asked for, so it scales with the corpus
+    // asked for: the samples-only default is seconds, the opt-in sweep is
+    // hundreds of real-world files per pack.
+    let budget = corpus_watchdog_budget(
+        opted_into_tmp_corpus(),
+        std::env::var_os("SPECTCL_CORPUS_DIFF").is_some(),
+    );
+    let (report, failures) = with_watchdog(
+        "spectcl-corpus",
+        budget,
+        "the corpus analysis budget was exceeded. This is a *budget* verdict, \
+         not a containment one: no hook is known to have hung. Either this \
+         machine is heavily loaded, or SPECTCL_CORPUS_TMP=1 opted the fetched \
+         tmp/ source trees in and there is more corpus here than the budget \
+         allows",
+        || {
+            let root = repo_root();
+            let (corpus_files, tmp) = corpus(&root);
+            let packs = tcl_spectcl::golden::shipped_pack_inventory(&root);
+            assert!(
+                packs.len() >= 24,
+                "the repository ships 24 .tclspec files (8 bundled + 11 ports + 5 external); \
+             found {}",
+                packs.len()
+            );
+
+            let reports = run_packs(&packs, &root, &corpus_files);
+
+            // This is the shared-vs-legacy equivalence proof. Keep it opt-in
+            // because it runs the exact gate twice.
+            compare_legacy_report(&packs, &root, &corpus_files, &reports);
+
+            let mut failures: Vec<String> = Vec::new();
+
+            let mut seen: Vec<String> = reports
+                .iter()
+                .flat_map(|report| report.notices.iter().cloned())
+                .collect();
+            seen.sort();
+            if std::env::var_os("SPECTCL_CORPUS_BLESS").is_some() {
+                write_baseline(&seen);
+            } else {
+                let baseline = read_baseline();
+                let mut counts: BTreeMap<&str, i32> = BTreeMap::new();
+                for line in &seen {
+                    *counts.entry(line.as_str()).or_default() += 1;
+                }
+                for line in &baseline {
+                    *counts.entry(line.as_str()).or_default() -= 1;
+                }
+                for (line, delta) in counts {
+                    if delta > 0 {
+                        failures.push(format!("unexpected load notice (x{delta}): {line}"));
+                    } else if delta < 0 {
+                        failures.push(format!(
+                            "baseline notice no longer produced (x{}) — delete it from \
+                         tests/spec_corpus_baseline.txt: {line}",
+                            -delta
+                        ));
+                    }
+                }
+            }
+
+            failures.extend(validate_reports(&reports));
+
+            (render(&reports, tmp), failures)
+        },
+    );
+
+    println!("{report}");
+    assert!(
+        failures.is_empty(),
+        "{report}\nSpecTcl corpus validation failed:\n  {}",
+        failures.join("\n  ")
+    );
+}
+
+/// What the hostile pack did: per hook, the folds it emitted (must be none)
+/// and how long the call site took; plus the crash records, the quarantined
+/// hooks, and how many bodies actually ran.
+struct Containment {
+    folds: Vec<(String, usize, Duration)>,
+    crashes: Vec<CrashRecord>,
+    quarantined: Vec<String>,
+    attempts: u64,
+    successes: u64,
+}
+
+/// Load the hostile fixture, host it, and drive each hook once through the
+/// optimiser.
+fn drive_hostile_pack() -> Containment {
+    let fixture = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../tcl-spectcl"))
+        .join("tests/fixtures/hostile.tclspec");
+    let set = tcl_spectcl::pack::load(&[PackFile {
+        tier: Tier::Workspace,
+        path: fixture,
+        origin: Origin::DotDir,
+        dependency_tier: None,
+    }]);
+    assert!(
+        set.notices.is_empty(),
+        "the hostile pack must be hostile at *run* time, not malformed: {:?}",
+        set.notices
+    );
+    assert_eq!(set.packs.len(), 1);
+    assert_eq!(set.packs[0].commands.len(), 3);
+
+    let plan = hooks::plan_for(&set);
+    let stats = Rc::new(EngineStats::default());
+    let host = Rc::new(counting_host(&stats));
+    let mut slots = BTreeMap::new();
+    for programs in plan.packs() {
+        for installation in host.install_pack_hooks(programs.clone()) {
+            assert!(
+                installation.declined.is_none(),
+                "{} declined: {:?}",
+                installation.command,
+                installation.declined
+            );
+            if let Some(slot) = installation.slot {
+                slots.insert(installation.command.clone(), slot);
+            }
+        }
+    }
+    pack_hooks::install_host(Rc::<HookHost<CountingEngine>>::clone(&host));
+    pack_hooks::clear_cache();
+
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.1", &set);
+
+    // Silence the panic hook for the injected panic — the record, not the
+    // stderr noise, is the evidence.
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+
+    // Order matters: a *panic* poisons the whole pack (the documented blast
+    // radius), so the two budget hooks are exercised first.
+    let mut folds: Vec<(String, usize, Duration)> = Vec::new();
+    for command in ["hostile::spin", "hostile::burn", "hostile::boom"] {
+        let script = format!("proc ::probe {{}} {{\n    set y [{command} abcde]\n}}\n");
+        let started = Instant::now();
+        let optimisations = optimise_raw(&script, &registry, Some("tcl9.1"))
+            .into_iter()
+            .filter(|opt| opt.code.as_str() == "O129")
+            .count();
+        folds.push((command.to_owned(), optimisations, started.elapsed()));
+    }
+    std::panic::set_hook(previous);
+
+    let outcome = Containment {
+        folds,
+        crashes: host.crash_records(),
+        quarantined: slots
+            .iter()
+            .filter(|(_, slot)| host.is_quarantined(**slot))
+            .map(|(command, _)| command.clone())
+            .collect(),
+        attempts: stats.attempts.get(),
+        successes: stats.successes.get(),
+    };
+    pack_hooks::clear_host();
+    pack_hooks::clear_cache();
+    outcome
+}
+
+fn render_containment(outcome: &Containment) -> String {
+    let mut report = String::from("\nSpecTcl containment — hostile pack\n\n");
+    let _ = writeln!(report, "| hook | folds emitted | wall clock |");
+    let _ = writeln!(report, "|---|---|---|");
+    for (command, count, elapsed) in &outcome.folds {
+        let _ = writeln!(
+            report,
+            "| {command} | {count} | {:.1} ms |",
+            elapsed.as_secs_f64() * 1000.0
+        );
+    }
+    let _ = writeln!(
+        report,
+        "\nhook invocations: {}/{} successful/attempted",
+        outcome.successes, outcome.attempts
+    );
+    let _ = writeln!(report, "quarantined: {}", outcome.quarantined.join(", "));
+    for crash in &outcome.crashes {
+        let _ = writeln!(report, "crash: {:?} — {}", crash.kind, crash.headline());
+    }
+    report
+}
+
+/// Containment, against the real loader and the real host: a hostile pack
+/// degrades to abstention with a crash record, and the harness neither hangs
+/// nor dies.
+#[test]
+fn a_hostile_pack_degrades_to_abstention_and_never_hangs() {
+    crate::install_surfaces();
+    // Generous next to the three default 250 ms wall-clock budgets, and far
+    // below anything that reads as a hang: if this expires, containment failed.
+    let outcome = with_watchdog(
+        "spectcl-hostile",
+        Duration::from_mins(2),
+        "a hook hung, which is exactly the containment failure this harness \
+         exists to catch — three 250 ms budgets cannot overrun a two-minute \
+         watchdog for any other reason",
+        drive_hostile_pack,
+    );
+    let Containment {
+        folds,
+        crashes,
+        quarantined,
+        attempts,
+        successes,
+    } = &outcome;
+    let report = render_containment(&outcome);
+    println!("{report}");
+
+    for (command, count, _) in folds {
+        assert_eq!(
+            *count, 0,
+            "{report}\n{command} must abstain, not fold — a contained hook \
+             produces no answer at all"
+        );
+    }
+    assert!(
+        *attempts >= 3,
+        "{report}\nall three hostile bodies must actually have been invoked"
+    );
+    assert_eq!(
+        *successes, 0,
+        "{report}\ncontained hostile bodies must not count as successful invocations"
+    );
+    assert_eq!(
+        crashes.len(),
+        3,
+        "{report}\none crash record per hostile hook"
+    );
+    assert_eq!(
+        quarantined.len(),
+        3,
+        "{report}\nevery hostile hook must end quarantined"
+    );
+
+    let kinds: Vec<tcl_spec_hooks::CrashKind> = crashes.iter().map(|c| c.kind).collect();
+    assert!(
+        kinds.contains(&tcl_spec_hooks::CrashKind::Panic),
+        "{report}\nthe panicking body must be recorded as a panic"
+    );
+    assert!(
+        kinds
+            .iter()
+            .filter(|kind| matches!(
+                kind,
+                tcl_spec_hooks::CrashKind::CommandBudget
+                    | tcl_spec_hooks::CrashKind::WallClockBudget
+            ))
+            .count()
+            >= 2,
+        "{report}\nboth the unbounded loop and the dispatch-heavy fold must be \
+         recorded as budget blowouts"
+    );
+    for crash in crashes {
+        assert_eq!(crash.pack, "hostile");
+        assert!(
+            !crash.word_shapes.is_empty(),
+            "{report}\na crash record carries the input word *shapes*"
+        );
+    }
+}
+
+/// Installs the shipped command surfaces; every test calls it before its
+/// first registry read.
+fn install_surfaces() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
+}

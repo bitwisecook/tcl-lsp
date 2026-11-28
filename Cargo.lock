@@ -4621,6 +4621,26 @@ dependencies = [
  "tcl-syntax",
  "tcl-test-support",
  "tcl-vm",
+]
+
+[[package]]
+name = "tcl-codegen-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+ "tcl-codegen",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-names",
+ "tcl-native-model",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-source",
+ "tcl-syntax",
+ "tcl-test-support",
+ "tcl-vm",
  "temp-env",
 ]
 
@@ -4633,7 +4653,6 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
- "rayon",
  "regex",
  "rustc-hash",
  "serde_json",
@@ -4662,6 +4681,8 @@ dependencies = [
 name = "tcl-compiler-it"
 version = "0.1.0"
 dependencies = [
+ "rayon",
+ "serde_json",
  "tcl-bytecode",
  "tcl-compiler",
  "tcl-core-types",
@@ -4669,9 +4690,12 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-names",
+ "tcl-native-model",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-source",
  "tcl-spectcl",
+ "tcl-syntax",
  "tcl-test-support",
 ]
 
@@ -5322,12 +5346,9 @@ name = "tcl-spectcl"
 version = "0.1.0"
 dependencies = [
  "rustc-hash",
- "tcl-codegen",
  "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
- "tcl-engine-api",
- "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-names",
@@ -5338,12 +5359,33 @@ dependencies = [
  "tcl-source",
  "tcl-spec-hooks",
  "tcl-spectcl",
- "tcl-sslictcl",
  "tcl-syntax",
  "tcl-test-support",
  "tcl-userdirs",
- "tcl-vm",
  "xxhash-rust",
+]
+
+[[package]]
+name = "tcl-spectcl-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-codegen",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-engine-api",
+ "tcl-engine-tclvm",
+ "tcl-lsp-core",
+ "tcl-native-model",
+ "tcl-pkg-model",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-spec-hooks",
+ "tcl-spectcl",
+ "tcl-sslictcl",
+ "tcl-syntax",
+ "tcl-test-support",
+ "tcl-vm",
 ]
 
 [[package]]

@@ -1314,7 +1314,7 @@ test-spectcl-compat: ensure-tcl90-reference ## Run SpecTcl 1.x/2.0/TclVM/real-Tc
 		tcl_reference_load_toolchains "$(ROOT)"; \
 		tclsh="$$(tcl_reference_resolve_tclsh 9.0)"; \
 		TCL_LSP_TCLSH90="$$tclsh" TCL_REQUIRE_SPECTCL_COMPAT=1 \
-		cargo test -p tcl-spectcl --test eval_loader --test golden_packs --test pack_source_e2e --test spec_corpus --test pack_is_real_tcl
+		cargo test -p tcl-spectcl -p tcl-spectcl-it --test eval_loader --test golden_packs --test pack_source_e2e --test spec_corpus --test pack_is_real_tcl
 
 test-installer: ## Test installer platform, UI, and legacy-migration decisions (no network)
 	@bash scripts/install/test_installer.sh
