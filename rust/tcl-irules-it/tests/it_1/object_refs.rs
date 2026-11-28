@@ -57,6 +57,7 @@ fn has_command_name(
 
 #[test]
 fn extract_irules_refs_for_pool_snatpool_and_datagroup() {
+    crate::support::install_surfaces();
     let source = "\n\
         when HTTP_REQUEST {\n\
         \x20   if [class match -- [HTTP::host] equals /Common/host_dg] {\n\
@@ -86,6 +87,7 @@ fn extract_irules_refs_for_pool_snatpool_and_datagroup() {
 
 #[test]
 fn extract_irules_refs_nested_in_body_and_command_substitution() {
+    crate::support::install_surfaces();
     let source = "\n\
         when HTTP_REQUEST {\n\
         \x20   set count [active_members /Common/app_pool]\n\

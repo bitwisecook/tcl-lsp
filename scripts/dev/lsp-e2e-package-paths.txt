@@ -24,6 +24,7 @@ rust/tcl-expr
 rust/tcl-host-c-abi
 rust/tcl-host-native
 rust/tcl-irules
+rust/tcl-irules-it
 rust/tcl-lexer
 rust/tcl-lsp-core
 rust/tcl-lsp-db

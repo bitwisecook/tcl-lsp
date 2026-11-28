@@ -83,6 +83,7 @@ when USER_RESPONSE {
 /// `TCP::notify request` reaches a `USER_REQUEST` handler.
 #[test]
 fn a_literal_notify_request_reaches_the_user_request_handler() {
+    crate::support::install_surfaces();
     assert_eq!(edge_targets(NOTIFY_REQUEST), vec!["USER_REQUEST"]);
     assert!(
         reaches(NOTIFY_REQUEST, "CLIENT_ACCEPTED", "log"),
@@ -93,6 +94,7 @@ fn a_literal_notify_request_reaches_the_user_request_handler() {
 /// And `response` reaches `USER_RESPONSE`, not `USER_REQUEST`.
 #[test]
 fn a_literal_notify_response_reaches_the_user_response_handler() {
+    crate::support::install_surfaces();
     assert_eq!(edge_targets(NOTIFY_RESPONSE), vec!["USER_RESPONSE"]);
 }
 
@@ -103,6 +105,7 @@ fn a_literal_notify_response_reaches_the_user_response_handler() {
 /// mistake a consumer-side `TCP::notify` name match would make.
 #[test]
 fn notify_eom_reaches_no_user_event() {
+    crate::support::install_surfaces();
     assert!(
         edge_targets(NOTIFY_EOM).is_empty(),
         "eom raises nothing: {:?}",
@@ -121,6 +124,7 @@ fn notify_eom_reaches_no_user_event() {
 /// the closure records only that it may run.
 #[test]
 fn a_name_lookup_reaches_the_resolved_handler_and_its_helpers() {
+    crate::support::install_surfaces();
     let source = r#"
 proc handle_resolution { } {
     log local0. "helper called from the resolved handler"
@@ -152,6 +156,7 @@ when NAME_RESOLVED {
 /// A computed subcommand or an unknown command invents no edge.
 #[test]
 fn dynamic_and_unknown_forms_produce_no_guessed_edge() {
+    crate::support::install_surfaces();
     let dynamic = r#"
 when CLIENT_ACCEPTED {
     set which request
@@ -186,6 +191,7 @@ when USER_REQUEST {
 /// emission from a definite one without re-deriving it.
 #[test]
 fn a_possible_emission_is_not_reported_as_definite() {
+    crate::support::install_surfaces();
     let edges = irules_event_emission_edges(NOTIFY_REQUEST, &registry());
     assert_eq!(edges.len(), 1, "{edges:?}");
     assert_eq!(
@@ -203,6 +209,7 @@ fn a_possible_emission_is_not_reported_as_definite() {
 /// `USER_REQUEST` handler into every consumer's reachability set.
 #[test]
 fn an_arity_invalid_call_raises_no_edge() {
+    crate::support::install_surfaces();
     let invalid = r#"
 when CLIENT_ACCEPTED {
     TCP::notify request extra
@@ -234,6 +241,7 @@ when USER_REQUEST {
 /// source — a silent loss of one of the two real edges.
 #[test]
 fn a_procedure_called_from_two_events_emits_under_both() {
+    crate::support::install_surfaces();
     let source = r#"
 proc helper { } {
     NAME::lookup "example.com"

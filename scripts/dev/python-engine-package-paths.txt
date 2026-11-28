@@ -19,6 +19,7 @@ rust/tcl-dialect
 rust/tcl-expr
 rust/tcl-f5mku
 rust/tcl-irules
+rust/tcl-irules-it
 rust/tcl-lexer
 rust/tcl-numeric
 rust/tcl-platform
