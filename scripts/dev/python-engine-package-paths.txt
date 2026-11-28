@@ -15,6 +15,7 @@ rust/tcl-cmd-core
 rust/tcl-compiler
 rust/tcl-core-types
 rust/tcl-diagram
+rust/tcl-diagram-it
 rust/tcl-dialect
 rust/tcl-expr
 rust/tcl-f5mku

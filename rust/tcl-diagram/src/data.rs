@@ -1080,6 +1080,3 @@ pub fn diagram_data_for_analysis(
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod original_source_tests;

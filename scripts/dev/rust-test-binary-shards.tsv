@@ -255,3 +255,7 @@
 4	tcl-irules-it::it_1	test	tcl-irules-it	it_1
 2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
 3	tcl-irules::script_bearing_args	test	tcl-irules	script_bearing_args
+4	tcl-diagram-it::attach	test	tcl-diagram-it	attach
+4	tcl-diagram-it::data	test	tcl-diagram-it	data
+4	tcl-diagram-it::graph	test	tcl-diagram-it	graph
+4	tcl-diagram-it::original_source	test	tcl-diagram-it	original_source
