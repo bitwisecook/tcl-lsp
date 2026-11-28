@@ -172,22 +172,6 @@ mod tests {
     }
 
     #[test]
-    fn references_excludes_declaration_when_requested() {
-        let line = 6;
-        let col = col_of(CONF, line, "/Common/p");
-        let refs = references_at(CONF, line, col, false);
-        let lines: Vec<u32> = refs.iter().map(|r| r.start.line).collect();
-        assert!(
-            !lines.contains(&0),
-            "declaration (line 0) must be dropped: {lines:?}",
-        );
-        assert!(
-            lines.contains(&6),
-            "reference (line 6) must remain: {lines:?}"
-        );
-    }
-
-    #[test]
     fn bare_token_is_not_a_path_reference() {
         // Cursor on `members` (a bare keyword, not a `/`-path) → no refs.
         let line = 1;

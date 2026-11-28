@@ -26,14 +26,14 @@ use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
 use tcl_bigip::parser::parse_bigip_conf;
 
 fn build() -> (GraphContext, tcl_bigip::parser::BigipConfig, String) {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../tcl-bigip/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/bigip.conf")).expect("read config");
     let cfg = parse_bigip_conf(&source, "Common");
     (GraphContext::new(), cfg, source)
 }
 
 fn check(name: &str, keep_paths: &[&str], keep_partitions: &[&str]) {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../tcl-bigip/tests/fixtures");
     let (ctx, cfg, source) = build();
     let uri = "test://config".to_owned();
     let sources = [(uri.clone(), source)];
@@ -66,6 +66,7 @@ fn check(name: &str, keep_paths: &[&str], keep_partitions: &[&str]) {
 
 #[test]
 fn cleanup() {
+    crate::install();
     check("default", &[], &["/Common/"]);
     check("nokeepcommon", &[], &[]);
     check("keeppath", &["/Common/unused_pool"], &[]);

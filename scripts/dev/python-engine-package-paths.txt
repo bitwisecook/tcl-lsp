@@ -5,8 +5,10 @@
 # closure from rust/bigip-report-gen/python/Cargo.lock and rejects drift.
 rust/bigip-report-gen
 rust/tcl-bigip
+rust/tcl-bigip-it
 rust/tcl-bigip-io
 rust/tcl-bigip-query
+rust/tcl-bigip-query-it
 rust/tcl-bigip-schema
 rust/tcl-bytecode-tables
 rust/tcl-cmd-core

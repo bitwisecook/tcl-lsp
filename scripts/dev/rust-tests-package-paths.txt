@@ -10,8 +10,10 @@ rust/bpf-tcl-ir
 rust/f5-cli
 rust/f5-xc
 rust/tcl-bigip
+rust/tcl-bigip-it
 rust/tcl-bigip-io
 rust/tcl-bigip-query
+rust/tcl-bigip-query-it
 rust/tcl-bigip-schema
 rust/tcl-bytecode
 rust/tcl-bytecode-tables

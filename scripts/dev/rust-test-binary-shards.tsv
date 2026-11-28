@@ -251,3 +251,5 @@
 5	tcl-vm-it::oo_unknown_dispatch_e2e	test	tcl-vm-it	oo_unknown_dispatch_e2e
 4	tcl-source	lib	tcl-source	tcl_source
 4	tcl-source::it_4	test	tcl-source	it_4
+2	tcl-bigip-it::integration	test	tcl-bigip-it	integration
+5	tcl-bigip-query-it::integration	test	tcl-bigip-query-it	integration

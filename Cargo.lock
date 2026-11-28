@@ -4437,6 +4437,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bigip-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-bigip",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-registry",
+]
+
+[[package]]
 name = "tcl-bigip-query"
 version = "0.1.0"
 dependencies = [
@@ -4459,6 +4470,17 @@ dependencies = [
  "tcl-syntax",
  "temp-env",
  "x509-parser",
+]
+
+[[package]]
+name = "tcl-bigip-query-it"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-bigip",
+ "tcl-bigip-query",
+ "tcl-bigip-schema",
+ "tcl-registry",
 ]
 
 [[package]]

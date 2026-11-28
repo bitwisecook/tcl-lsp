@@ -46,7 +46,8 @@ fn run(query: &str, mode: &str) -> Result<String, String> {
 
 #[test]
 fn projection() {
-    let raw = include_str!("../fixtures/projection.json");
+    crate::install();
+    let raw = include_str!("../../../tcl-bigip-query/tests/fixtures/projection.json");
     let cases: J = serde_json::from_str(raw).expect("fixture is valid JSON");
     let cases = cases.as_array().expect("fixture is an array");
     assert_ne!(cases.as_slice(), [] as [J; 0]);

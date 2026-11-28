@@ -17,19 +17,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Consolidated integration suite for the query language.
-//!
-//! One binary for all fifteen suites. Every `tests/*.rs` is otherwise its own
-//! binary statically linking the whole dependency graph, and six of these files
-//! held a single test each — six full link steps to run six tests. The suites
-//! are independent and share no state, so nothing is lost by sharing a process
-//! and the parallel pool gets wider rather than narrower.
-//!
-//! The files live under `tests/integration/` — a non-target subdirectory, so
-//! cargo does not re-discover them as binaries of their own — and `#[path]`
-//! points at them, the arrangement `tcl-lsp-server/tests/e2e.rs` established.
-//! Test names are module-qualified (`renderers::…`, `output::…`), so a
-//! `cargo test` name filter names a module here, read the same way it
-//! would name a standalone test binary.
+
+//! The modules share one test binary.
 
 #[path = "integration/edit_plan.rs"]
 mod edit_plan;
@@ -39,8 +28,6 @@ mod eval;
 mod files;
 #[path = "integration/front_end.rs"]
 mod front_end;
-#[path = "integration/graph.rs"]
-mod graph;
 #[path = "integration/hardening.rs"]
 mod hardening;
 #[path = "integration/math.rs"]
@@ -53,12 +40,8 @@ mod net;
 mod output;
 #[path = "integration/probes.rs"]
 mod probes;
-#[path = "integration/projection.rs"]
-mod projection;
 #[path = "integration/regex_str.rs"]
 mod regex_str;
-#[path = "integration/registry_refs.rs"]
-mod registry_refs;
 #[path = "integration/renderers.rs"]
 mod renderers;
 #[path = "integration/time.rs"]
