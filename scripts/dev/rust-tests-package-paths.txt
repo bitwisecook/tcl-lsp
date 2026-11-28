@@ -17,6 +17,7 @@ rust/tcl-bytecode
 rust/tcl-bytecode-tables
 rust/tcl-cli
 rust/tcl-cli-support
+rust/tcl-cli-support-it
 rust/tcl-cmd-core
 rust/tcl-codegen
 rust/tcl-compiler

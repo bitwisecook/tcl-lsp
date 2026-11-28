@@ -96,6 +96,7 @@ members = [
     "rust/tcl-explorer",
     "rust/tcl-spec-studio",
     "rust/tcl-cli-support",
+    "rust/tcl-cli-support-it",
     "rust/tcl-cli",
     "rust/tcl-pkg",
     "rust/tcl-pkg-model",

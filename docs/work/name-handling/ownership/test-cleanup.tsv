@@ -49,7 +49,6 @@ tcl-cli	rust/tcl-cli/src/commands/spec.rs::tests	2	1	0	1
 tcl-cli	rust/tcl-cli/src/commands/spec_probe.rs::tests	3	3	0	0
 tcl-cli	rust/tcl-cli/src/commands/spec_test.rs::tests	7	6	0	1
 tcl-cli	rust/tcl-cli/src/tui.rs::tests	6	8	0	18
-tcl-cli-support	rust/tcl-cli-support/src/highlight.rs::tests	2	0	0	2
 tcl-cli-support	rust/tcl-cli-support/src/spec_import.rs::tests	2	0	0	10
 tcl-cli-support	rust/tcl-cli-support/src/worker.rs::tests	3	0	0	3
 tcl-cmd-core	rust/tcl-cmd-core/src/binary.rs::tests	3	0	0	3
