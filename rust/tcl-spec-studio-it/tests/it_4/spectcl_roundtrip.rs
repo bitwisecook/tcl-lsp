@@ -1,0 +1,1593 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! The gate for the `SpecTcl` renderer: draft → `.tclspec` → draft.
+//!
+//! [`render_spectcl`](tcl_spec_studio::render_spectcl) is the inverse of
+//! [`spectcl::evaluate_pack`](tcl_spec_studio::spectcl::evaluate_pack), so the honest
+//! test of it is the round trip, run over the *whole* command surface rather
+//! than a handful of examples: every distinct immutable command spec is
+//! drafted from the live registries, rendered to `SpecTcl`, loaded back, and
+//! drafted again. The reloaded draft is then compared **field by field** at
+//! every browsable dialect/name position where that exact spec appears — the
+//! same comparison `tests/spectcl_ports.rs` makes between a ported pack and
+//! the shipped spec it was ported from.
+//!
+//! ## What "unequal" is allowed to mean
+//!
+//! Exactly the keys [`render_spectcl::GAPS`] names, and nothing else. Each is
+//! one of four kinds, and each kind is a different claim:
+//!
+//! - [`GapKind::DraftOpaque`] — the DSL *has* a spelling and the loader reads
+//!   it, but the draft model records the field as "set, expression not
+//!   recovered" ([`draft::UNRENDERABLE_KEY`]), because the spec field is a
+//!   function pointer or a reference to a named `&'static` descriptor. The
+//!   loss is the draft's, not the DSL's.
+//! - [`GapKind::LoaderGap`] — the draft holds the value and the design memo
+//!   documents a spelling, but no loader reader exists yet.
+//! - [`GapKind::Excluded`] — a pack may not author the field at all.
+//! - [`GapKind::PackLevel`] — a row of a pack-level block (`environment`),
+//!   which no per-command draft key holds.
+//!
+//! **Native hooks are deliberately not in that list.** A hook field renders as
+//! `field -native ID`, the loader installs its family's abstention, and
+//! seeding records the reloaded field exactly as it recorded the shipped one —
+//! so the eight function-pointer families round-trip *equal*, and the gate
+//! checks that they do rather than excusing them.
+
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::fmt::Write as _;
+
+use serde_json::Value;
+use tcl_spec_studio::render_spectcl::{self, GapKind};
+use tcl_spec_studio::{browsable_dialects, command_names, draft, load_command, schema, spectcl};
+
+/// One field that did not survive the round trip.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Diff {
+    key: String,
+    rendered: String,
+    shipped: String,
+}
+
+fn short(value: &Value) -> String {
+    let text = value.to_string();
+    if text.chars().count() > 200 {
+        let head: String = text.chars().take(180).collect();
+        format!("{head}… ({} bytes)", text.len())
+    } else {
+        text
+    }
+}
+
+fn compare_keys(
+    rendered: &Value,
+    shipped: &Value,
+    keys: impl Iterator<Item = &'static str>,
+    prefix: &str,
+    out: &mut Vec<Diff>,
+) {
+    for key in keys {
+        let a = rendered.get(key).unwrap_or(&Value::Null);
+        let b = shipped.get(key).unwrap_or(&Value::Null);
+        if a != b {
+            out.push(Diff {
+                key: format!("{prefix}{key}"),
+                rendered: short(a),
+                shipped: short(b),
+            });
+        }
+    }
+}
+
+/// The `__unrenderable` lists compared as sets, so the report names the keys
+/// that moved rather than printing two arrays.
+fn compare_unrenderable(rendered: &Value, shipped: &Value, prefix: &str, out: &mut Vec<Diff>) {
+    let keys = |value: &Value| -> BTreeSet<String> {
+        value
+            .get(draft::UNRENDERABLE_KEY)
+            .and_then(Value::as_array)
+            .map_or_default(|keys| {
+                keys.iter()
+                    .filter_map(Value::as_str)
+                    .map(ToOwned::to_owned)
+                    .collect()
+            })
+    };
+    let (a, b) = (keys(rendered), keys(shipped));
+    for key in b.difference(&a) {
+        out.push(Diff {
+            key: format!("{prefix}{key}"),
+            rendered: "not set".to_owned(),
+            shipped: "set (unrecoverable)".to_owned(),
+        });
+    }
+    for key in a.difference(&b) {
+        out.push(Diff {
+            key: format!("{prefix}{key}"),
+            rendered: "set (unrecoverable)".to_owned(),
+            shipped: "not set".to_owned(),
+        });
+    }
+}
+
+/// The bare field name behind a `subcommands[foo].bar` diff key.
+fn field_of(key: &str) -> &str {
+    key.rsplit('.').next().unwrap_or(key)
+}
+
+/// The object a diff key names — the draft itself, or the subcommand inside it.
+fn at_level<'a>(key: &str, draft: &'a Value) -> Option<&'a Value> {
+    if let Some(rest) = key.strip_prefix("object_class.methods[") {
+        let name = rest.split(']').next()?;
+        return draft
+            .get("object_class")?
+            .get("instance_methods")?
+            .as_array()?
+            .iter()
+            .find(|method| method["name"].as_str() == Some(name));
+    }
+    let Some(rest) = key.strip_prefix("subcommands[") else {
+        return Some(draft);
+    };
+    let name = rest.split(']').next()?;
+    draft
+        .get("subcommands")?
+        .as_array()?
+        .iter()
+        .find(|sub| sub["name"].as_str() == Some(name))
+}
+
+/// Compare a rendered-and-reloaded draft against the one it was rendered from.
+fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
+    let mut out = Vec::new();
+    compare_keys(
+        rendered,
+        shipped,
+        schema::COMMAND_FIELDS.iter().map(|field| field.key),
+        "",
+        &mut out,
+    );
+    compare_unrenderable(rendered, shipped, "", &mut out);
+
+    // `subcommands` is compared as a whole above; when the two agree on the
+    // set of names, compare each one's own fields so the report says which
+    // subcommand and which key rather than dumping two large arrays.
+    let names = |value: &Value| -> Vec<String> {
+        value
+            .get("subcommands")
+            .and_then(Value::as_array)
+            .map_or_default(|subs| {
+                subs.iter()
+                    .map(|sub| sub["name"].as_str().unwrap_or("").to_owned())
+                    .collect()
+            })
+    };
+    let (a, b) = (names(rendered), names(shipped));
+    if a == b {
+        out.retain(|diff| diff.key != "subcommands");
+        for (i, name) in a.iter().enumerate() {
+            let x = &rendered["subcommands"][i];
+            let y = &shipped["subcommands"][i];
+            let prefix = format!("subcommands[{name}].");
+            compare_keys(
+                x,
+                y,
+                schema::SUBCOMMAND_FIELDS.iter().map(|field| field.key),
+                &prefix,
+                &mut out,
+            );
+            compare_unrenderable(x, y, &prefix, &mut out);
+        }
+    }
+
+    // `object_class.instance_methods` uses the same SubCommand schema.  Once
+    // the class descriptor itself became round-trippable, keeping it atomic
+    // hid which documented method-level gap remained and misreported that
+    // loss as an undocumented failure of the whole class.
+    let class_methods = |value: &Value| -> Vec<String> {
+        value
+            .get("object_class")
+            .and_then(|class| class.get("instance_methods"))
+            .and_then(Value::as_array)
+            .map_or_default(|methods| {
+                methods
+                    .iter()
+                    .map(|method| method["name"].as_str().unwrap_or("").to_owned())
+                    .collect()
+            })
+    };
+    let (a, b) = (class_methods(rendered), class_methods(shipped));
+    if a == b && rendered.get("object_class").is_some() && shipped.get("object_class").is_some() {
+        let mut rendered_class = rendered["object_class"].clone();
+        let mut shipped_class = shipped["object_class"].clone();
+        rendered_class
+            .as_object_mut()
+            .map(|class| class.remove("instance_methods"));
+        shipped_class
+            .as_object_mut()
+            .map(|class| class.remove("instance_methods"));
+        if rendered_class == shipped_class {
+            out.retain(|diff| diff.key != "object_class");
+            for (i, name) in a.iter().enumerate() {
+                let x = &rendered["object_class"]["instance_methods"][i];
+                let y = &shipped["object_class"]["instance_methods"][i];
+                let prefix = format!("object_class.methods[{name}].");
+                compare_keys(
+                    x,
+                    y,
+                    schema::SUBCOMMAND_FIELDS.iter().map(|field| field.key),
+                    &prefix,
+                    &mut out,
+                );
+                compare_unrenderable(x, y, &prefix, &mut out);
+            }
+        }
+    }
+    out
+}
+
+/// Whether a notice is the loader's *policy report* rather than a degradation.
+///
+/// Naming a lowering hook is reported by design — "this changes how the
+/// compiler translates the command, not just what the editor knows about
+/// it" — so a pack the renderer wrote faithfully still raises it. Every other
+/// notice means a declaration was dropped, and the gate fails on those. (A
+/// codegen-axis stamp raises nothing here: whether it survives is the stamp
+/// rejection rule's call at a pack's load, `tcl_spectcl::stamps`.)
+fn is_policy_report(message: &str) -> bool {
+    message.contains("names a lowering hook")
+}
+
+/// What one command's round trip produced.
+struct Trip {
+    /// The draft the reloaded pack seeds.
+    reloaded: Value,
+    /// Loader notices that mean something was *dropped* — the policy reports
+    /// are filtered out below.
+    notices: Vec<String>,
+    /// The rendered pack.
+    text: String,
+}
+
+/// Render `shipped`, load the pack back, and report what happened.
+fn round_trip(shipped: &Value) -> Trip {
+    let draft = shipped
+        .as_object()
+        .expect("a draft is a JSON object")
+        .clone();
+    let pack_name = draft
+        .get(draft::SOURCE_DIALECT_KEY)
+        .and_then(Value::as_str)
+        .unwrap_or("pack")
+        .to_owned();
+    let text = render_spectcl::render_pack(&[draft], &pack_name);
+    let pack = spectcl::evaluate_pack(&text);
+    let name = shipped["name"].as_str().unwrap_or_default();
+    // Naming a lowering or codegen hook is *reported* by design — "this
+    // changes how the compiler translates the command" — so it is a policy
+    // report about a pack the renderer wrote faithfully, not a degradation.
+    // Every other notice means something was dropped, and the gate fails on it.
+    let notices: Vec<String> = pack
+        .notices
+        .iter()
+        .filter(|notice| !is_policy_report(&notice.message))
+        .map(ToString::to_string)
+        .collect();
+    let reloaded = pack.command(name).map_or(Value::Null, |command| {
+        Value::Object(draft::from_command_spec(command.spec))
+    });
+    Trip {
+        reloaded,
+        notices,
+        text,
+    }
+}
+
+/// Whether an `arg_roles` difference is exactly the `CommandPrefix` roles the
+/// DSL *implies*.
+///
+/// `arg N -appends {Exactly 2}` implies `-role CommandPrefix` — README says so,
+/// and the loader does it — so a spec that declares a command-prefix position
+/// with **no** role at that index cannot be said in `SpecTcl`: reloading always
+/// finds the implied role. That is an expressiveness gap in the DSL rather
+/// than a renderer bug, and it is the only shape of `arg_roles` difference the
+/// gate tolerates.
+fn only_implied_command_prefix_roles(rendered: &Value, shipped: &Value) -> bool {
+    let prefixes: BTreeSet<u64> = rendered
+        .get("command_prefixes")
+        .and_then(Value::as_array)
+        .map_or_default(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry["index"].as_u64())
+                .collect()
+        });
+    let roles = |value: &Value| -> Vec<Value> {
+        value
+            .get("arg_roles")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let shipped_roles = roles(shipped);
+    let implied: Vec<Value> = roles(rendered)
+        .into_iter()
+        .filter(|entry| {
+            !(entry["role"] == "CommandPrefix"
+                && entry["index"]
+                    .as_u64()
+                    .is_some_and(|i| prefixes.contains(&i))
+                && !shipped_roles
+                    .iter()
+                    .any(|other| other["index"] == entry["index"]))
+        })
+        .collect();
+    implied == shipped_roles && !prefixes.is_empty()
+}
+
+/// Whether two subcommands' nested rows differ only in a nested
+/// `native_compilation`, the excluded contract the renderer reports as
+/// `nested_native_compilation` and a pack cannot author.
+fn only_nested_native_compilation(rendered: &Value, shipped: &Value) -> bool {
+    let rows = |value: &Value| -> Vec<Value> {
+        value
+            .get("sub_subcommands")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|mut row| {
+                if let Some(row) = row.as_object_mut() {
+                    row.insert("native_compilation".to_owned(), Value::Null);
+                }
+                row
+            })
+            .collect()
+    };
+    let shipped_rows = shipped
+        .get("sub_subcommands")
+        .and_then(Value::as_array)
+        .is_some_and(|rows| rows.iter().any(|row| !row["native_compilation"].is_null()));
+    shipped_rows && rows(rendered) == rows(shipped)
+}
+
+/// Arity windows survive render → load → re-seed.
+///
+/// The whole-surface trip above cannot cover them: every shipped spec has
+/// empty `arity_windows`, so the field is absent from every draft it visits
+/// and a renderer that dropped the rows entirely would still pass. This
+/// drives one command that actually has them.
+#[test]
+fn arity_windows_survive_the_round_trip() {
+    crate::install_surfaces();
+    use tcl_registry::arity::{Arity, ArityWindow};
+    use tcl_registry::lifecycle::Lifecycle;
+
+    const WINDOWS: &[ArityWindow] = &[
+        ArityWindow {
+            lifecycle: Lifecycle {
+                introduced: Some("3.0"),
+                deprecated: None,
+                retired: Some("5.0"),
+                deprecation_fix: None,
+            },
+            arity: Arity::exact(2),
+        },
+        ArityWindow {
+            lifecycle: Lifecycle {
+                introduced: Some("5.0"),
+                deprecated: None,
+                retired: None,
+                deprecation_fix: None,
+            },
+            arity: Arity::new(1, 3),
+        },
+    ];
+
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::grew",
+        arity: Arity::exact(1),
+        arity_windows: WINDOWS,
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text.contains("arity 2 -introduced 3.0 -retired 5.0"),
+        "the closed window is rendered with both releases:\n{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("arity 1..3 -introduced 5.0"),
+        "the open window renders no -retired:\n{}",
+        trip.text
+    );
+
+    let windows = trip.reloaded["arity_windows"]
+        .as_array()
+        .expect("reloaded draft carries arity_windows");
+    assert_eq!(windows.len(), 2, "{windows:?}\n{}", trip.text);
+    assert_eq!(windows[0]["arity"]["max"], serde_json::json!(2));
+    assert_eq!(
+        windows[0]["lifecycle"]["introduced"],
+        serde_json::json!("3.0")
+    );
+    assert_eq!(windows[0]["lifecycle"]["retired"], serde_json::json!("5.0"));
+    assert_eq!(windows[1]["arity"]["min"], serde_json::json!(1));
+    assert_eq!(windows[1]["arity"]["max"], serde_json::json!(3));
+    assert_eq!(windows[1]["lifecycle"]["retired"], Value::Null);
+
+    // The plain arity is untouched by the windows beside it.
+    assert_eq!(trip.reloaded["arity"]["min"], serde_json::json!(1));
+    assert_eq!(trip.reloaded["arity"]["max"], serde_json::json!(1));
+}
+
+/// Codegen-axis stamp windows survive render → load → re-seed.
+///
+/// No shipped spec declares any, so the whole-surface trip cannot cover them
+/// and a renderer that dropped the rows would still pass. This drives one
+/// command and one subcommand that carry the three a pack can author, each
+/// beside its plain stamp, and the fourth — the native lowering windows — as
+/// the field a pack cannot author.
+#[test]
+fn stamp_windows_survive_the_round_trip() {
+    crate::install_surfaces();
+    use tcl_registry::hooks::{CodegenHookId, InlineCodegenHookId};
+    use tcl_registry::intrinsic::IntrinsicId;
+    use tcl_registry::lifecycle::Lifecycle;
+    use tcl_registry::semantic_operation::SemanticOperationId;
+    use tcl_registry::stamp_window::StampWindow;
+
+    const CODEGEN: &[StampWindow<CodegenHookId>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: CodegenHookId::Llength,
+    }];
+    const INLINE: &[StampWindow<InlineCodegenHookId>] = &[StampWindow {
+        lifecycle: Lifecycle::UNSPECIFIED.retired_from("9.0"),
+        value: InlineCodegenHookId::Expr,
+    }];
+    const OPERATION: &[StampWindow<SemanticOperationId>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0").deprecated_from("9.1"),
+        value: SemanticOperationId::Intrinsic(IntrinsicId::StringLength),
+    }];
+    const SUB_CODEGEN: &[StampWindow<CodegenHookId>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: CodegenHookId::Dict,
+    }];
+
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::stamped",
+        codegen_hook: Some(CodegenHookId::Lassign),
+        semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringLength)),
+        codegen_hook_windows: CODEGEN,
+        inline_codegen_hook_windows: INLINE,
+        semantic_operation_windows: OPERATION,
+        subcommands: Box::leak(Box::new([tcl_registry::SubCommand {
+            name: "get",
+            codegen_hook_windows: SUB_CODEGEN,
+            ..tcl_registry::SubCommand::DEFAULT
+        }])),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    let rows = [
+        "codegen_hook -native Lassign\n",
+        "codegen_hook -native Llength -introduced 9.0\n",
+        "inline_codegen_hook -native Expr -retired 9.0\n",
+        "semantic_operation {Intrinsic StringLength}\n",
+        "semantic_operation {Intrinsic StringLength} -introduced 9.0 -deprecated 9.1\n",
+        "subcommand get { codegen_hook -native Dict -introduced 9.0 }",
+    ];
+    for row in rows {
+        assert!(
+            trip.text.contains(row),
+            "the row `{}` is rendered:\n{}",
+            row.trim_end(),
+            trip.text
+        );
+    }
+    // The plain stamp is one row, and the windows are rows of their own.
+    assert_eq!(trip.text.matches("codegen_hook -native Lassign").count(), 1);
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+
+    let windows = |value: &Value, key: &str| -> Vec<Value> {
+        value[key]
+            .as_array()
+            .unwrap_or_else(|| panic!("the reloaded draft carries {key}"))
+            .clone()
+    };
+    let codegen = windows(&trip.reloaded, "codegen_hook_windows");
+    assert_eq!(codegen.len(), 1, "{codegen:?}\n{}", trip.text);
+    assert_eq!(codegen[0]["value"], serde_json::json!("Llength"));
+    assert_eq!(
+        codegen[0]["lifecycle"]["introduced"],
+        serde_json::json!("9.0")
+    );
+    assert_eq!(codegen[0]["lifecycle"]["retired"], Value::Null);
+    assert_eq!(trip.reloaded["codegen_hook"], serde_json::json!("Lassign"));
+
+    let inline = windows(&trip.reloaded, "inline_codegen_hook_windows");
+    assert_eq!(inline[0]["value"], serde_json::json!("Expr"));
+    assert_eq!(inline[0]["lifecycle"]["retired"], serde_json::json!("9.0"));
+    assert_eq!(trip.reloaded["inline_codegen_hook"], Value::Null);
+
+    // #2137: the plain field seeds and reloads like any enumerated field.
+    assert_eq!(
+        trip.reloaded["semantic_operation"]["kind"],
+        serde_json::json!("intrinsic"),
+        "{}",
+        trip.text
+    );
+    let operation = windows(&trip.reloaded, "semantic_operation_windows");
+    assert_eq!(
+        operation[0]["value"]["kind"],
+        serde_json::json!("intrinsic")
+    );
+    assert_eq!(
+        operation[0]["lifecycle"]["deprecated"],
+        serde_json::json!("9.1")
+    );
+
+    let sub = &trip.reloaded["subcommands"][0];
+    let sub_codegen = windows(sub, "codegen_hook_windows");
+    assert_eq!(sub_codegen[0]["value"], serde_json::json!("Dict"));
+    assert_eq!(
+        sub_codegen[0]["lifecycle"]["introduced"],
+        serde_json::json!("9.0")
+    );
+}
+
+/// A native lowering window is the compiler's own fact and no pack spelling
+/// carries it: the draft says it could not recover it, and the render leaves it
+/// out rather than inventing a row.
+#[test]
+fn native_lowering_windows_are_unrecoverable_and_not_rendered() {
+    crate::install_surfaces();
+    use tcl_registry::lifecycle::Lifecycle;
+    use tcl_registry::native_lowering::NativeLowering;
+    use tcl_registry::stamp_window::StampWindow;
+
+    const WINDOWS: &[StampWindow<NativeLowering>] = &[StampWindow {
+        lifecycle: Lifecycle::introduced_in("9.0"),
+        value: NativeLowering::Generic,
+    }];
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::native",
+        native_lowering_windows: WINDOWS,
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    assert!(
+        draft[draft::UNRENDERABLE_KEY]
+            .as_array()
+            .expect("the draft lists what it could not recover")
+            .iter()
+            .any(|key| key.as_str() == Some("native_lowering_windows")),
+        "{draft}"
+    );
+    let trip = round_trip(&draft);
+    assert!(!trip.text.contains("native_lowering"), "{}", trip.text);
+}
+
+/// `alias_of` survives render → load → re-seed.
+///
+/// No shipped spec declares it — it names the builtin a *pack* command is —
+/// so the whole-surface trip never meets it, as with arity windows. This
+/// drives one pack command that does.
+#[test]
+fn alias_of_survives_the_round_trip() {
+    crate::install_surfaces();
+    let spec = tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        arity: tcl_registry::arity::Arity::at_least(1),
+        alias_of: Some("lassign"),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(trip.text.contains("alias_of lassign"), "{}", trip.text);
+    assert_eq!(
+        trip.reloaded["alias_of"],
+        serde_json::json!("lassign"),
+        "{}",
+        trip.text
+    );
+}
+
+/// A pack's structured `example { code …; carrier …; note … }` loads into
+/// `documentation_examples` and survives the studio round trip; a plain
+/// `example` beside it stays hover text.
+#[test]
+fn structured_examples_survive_the_round_trip() {
+    crate::install_surfaces();
+    use tcl_registry::documentation::{
+        DocumentationAnnotation, DocumentationCarrier, DocumentationExample,
+    };
+    const NOTES: &[DocumentationAnnotation] = &[
+        DocumentationAnnotation::new(1, "$items", "supplies the list"),
+        DocumentationAnnotation::new(1, "mypkg::count", "returns the count"),
+    ];
+    const EXAMPLES: &[DocumentationExample] = &[DocumentationExample::with_carrier(
+        "set items {a b}\nset n [mypkg::count $items]",
+        DocumentationCarrier::new(1, "mypkg::count"),
+        NOTES,
+    )];
+    let spec = tcl_registry::CommandSpec {
+        name: "mypkg::count",
+        arity: tcl_registry::arity::Arity::exact(1),
+        hover: Some(tcl_registry::prelude::HoverSnippet {
+            summary: "Count list elements.",
+            synopsis: &["mypkg::count list"],
+            snippet: "",
+            source: "",
+            examples: "mypkg::count {a b c}",
+            return_value: "",
+        }),
+        documentation_examples: EXAMPLES,
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text.contains("carrier 1 {mypkg::count}"),
+        "{}",
+        trip.text
+    );
+    assert_eq!(
+        trip.reloaded["documentation_examples"], draft["documentation_examples"],
+        "{}",
+        trip.text
+    );
+    assert_eq!(
+        trip.reloaded["hover"]["examples"],
+        serde_json::json!("mypkg::count {a b c}")
+    );
+}
+
+/// A side-effect list states how completely it is known, and the `SpecTcl`
+/// `effects` row, the Studio draft and the reloaded spec agree on it (issue
+/// #1712). Completeness windows are release-ladder facts: the test covers
+/// 8.4–9.1 and a 9.0-only window, and a package axis.
+#[test]
+fn side_effect_knowledge_survives_the_round_trip() {
+    crate::install_surfaces();
+    use tcl_dialect::model::{Family, SpecSurface};
+    use tcl_registry::knowledge::Knowledge;
+    use tcl_registry::side_effects::{SideEffect, SideEffectTarget};
+    const WRITES: &[SideEffect] = &[SideEffect {
+        target: SideEffectTarget::FileIo,
+        writes: true,
+        ..SideEffect::DEFAULT
+    }];
+    const NINE: &[SpecSurface] = &[SpecSurface::core_in(Family::Tcl, &[("9.0", Some("9.1"))])];
+    const PACKAGE: &[SpecSurface] = &[SpecSurface::package("struct::list")];
+    for (label, knowledge) in [
+        (
+            "complete and empty",
+            Knowledge::Complete(&[][..], SpecSurface::ALL_TCL),
+        ),
+        ("complete at 9.0", Knowledge::Complete(WRITES, NINE)),
+        (
+            "complete in a package",
+            Knowledge::Complete(&[][..], PACKAGE),
+        ),
+        ("partial and empty", Knowledge::Partial(&[][..])),
+        ("partial", Knowledge::Partial(WRITES)),
+        ("unknown", Knowledge::Unknown),
+    ] {
+        let spec = tcl_registry::CommandSpec {
+            name: "mypkg::emit",
+            arity: tcl_registry::arity::Arity::exact(1),
+            side_effects: knowledge,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let draft = Value::Object(draft::from_command_spec(&spec));
+        let trip = round_trip(&draft);
+        assert!(
+            trip.notices.is_empty(),
+            "{label}: {:?}\n{}",
+            trip.notices,
+            trip.text
+        );
+        for key in ["side_effects", "side_effects_knowledge"] {
+            assert_eq!(
+                trip.reloaded[key], draft[key],
+                "{label}: {key}\n{}",
+                trip.text
+            );
+        }
+    }
+}
+
+/// A completeness window that names no release ladder is refused with a
+/// notice, and the row with it.
+#[test]
+fn an_unreadable_completeness_window_is_refused() {
+    crate::install_surfaces();
+    let spec = tcl_registry::CommandSpec {
+        name: "mypkg::emit",
+        arity: tcl_registry::arity::Arity::exact(1),
+        side_effects: tcl_registry::knowledge::Knowledge::Partial(&[]),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = draft::from_command_spec(&spec);
+    let text = render_spectcl::render_pack(&[draft], "pack");
+    assert!(text.contains("effects -partial"), "{text}");
+    let pack =
+        spectcl::evaluate_pack(&text.replace("effects -partial", "effects -complete {8.6 jim}"));
+    assert!(
+        pack.notices
+            .iter()
+            .any(|notice| notice.message.contains("effects -complete")),
+        "{:?}",
+        pack.notices
+    );
+}
+
+/// A note whose text is not on its line is refused with a notice, and the
+/// example with it, rather than drawn somewhere else.
+#[test]
+fn a_structured_example_note_off_its_line_is_refused() {
+    crate::install_surfaces();
+    use tcl_registry::documentation::{DocumentationAnnotation, DocumentationExample};
+    const NOTES: &[DocumentationAnnotation] = &[DocumentationAnnotation::new(
+        0,
+        "$items",
+        "supplies the list",
+    )];
+    const EXAMPLES: &[DocumentationExample] = &[DocumentationExample::new(
+        "set n [mypkg::count $items]",
+        NOTES,
+    )];
+    let spec = tcl_registry::CommandSpec {
+        name: "mypkg::count",
+        arity: tcl_registry::arity::Arity::exact(1),
+        documentation_examples: EXAMPLES,
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let text = round_trip(&draft)
+        .text
+        .replace("note 0 {$items}", "note 0 {$missing}");
+    let pack = spectcl::evaluate_pack(&text);
+    let command = pack.command("mypkg::count").expect("command loads");
+    assert!(command.spec.documentation_examples.is_empty(), "{text}");
+    assert!(
+        pack.notices
+            .iter()
+            .any(|notice| notice.message.contains("$missing")),
+        "{:?}",
+        pack.notices
+    );
+}
+
+/// `runtime_backing` is a per-command fact with five spellings; every one
+/// survives the studio round trip, and `none` — the default — writes no row.
+/// The whole-surface trips meet the `shipped-builtin` spelling on every core
+/// command, but no shipped spec declares the other three.
+#[test]
+fn runtime_backing_survives_the_round_trip() {
+    crate::install_surfaces();
+    use tcl_registry::RuntimeBacking;
+
+    for backing in [
+        RuntimeBacking::shipped("lassign"),
+        RuntimeBacking::package_source("init.tcl"),
+        RuntimeBacking::HostNative,
+        RuntimeBacking::pack_text("proc p {a} {\n    return [list $a {b}]\n}"),
+        // Unbalanced braces are backslash-quoted, not braced.
+        RuntimeBacking::pack_text("puts \"{\""),
+        // The author's assertion that the body may be evaluated is part of the
+        // statement, whichever source the body has.
+        RuntimeBacking::pack_text("proc p {a} {return $a}").evaluated(),
+        RuntimeBacking::package_source("init.tcl").evaluated(),
+    ] {
+        let spec = tcl_registry::CommandSpec {
+            name: "vendor::unpack",
+            arity: tcl_registry::arity::Arity::at_least(1),
+            runtime_backing: backing,
+            ..tcl_registry::CommandSpec::DEFAULT
+        };
+        let draft = Value::Object(draft::from_command_spec(&spec));
+        let trip = round_trip(&draft);
+
+        assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+        assert!(trip.text.contains("runtime_backing "), "{}", trip.text);
+        assert_eq!(
+            trip.reloaded["runtime_backing"], draft["runtime_backing"],
+            "{}",
+            trip.text
+        );
+    }
+
+    let spec = tcl_registry::CommandSpec {
+        name: "vendor::unpack",
+        arity: tcl_registry::arity::Arity::at_least(1),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+    assert!(!trip.text.contains("runtime_backing"), "{}", trip.text);
+    assert_eq!(trip.reloaded["runtime_backing"], serde_json::json!("none"));
+}
+
+/// A declared `semantics` / `evaluate` plan is plain data — like
+/// `object_class` a level up — so it round-trips in full: no `GAPS` entry,
+/// no notice, the reloaded declaration equal to the one drafted.
+#[test]
+fn a_declared_semantics_plan_survives_the_round_trip() {
+    crate::install_surfaces();
+    use tcl_registry::types::TclType;
+    use tcl_registry::value_transfer::{
+        DeclaredEffect, DeclaredEvaluation, DeclaredSemantics, DeclaredStores, DeclaredStructure,
+        EvalRoute, LanguageProfileId, OutcomeKind, SemanticType, SemanticsDeclaration,
+    };
+
+    static SEMANTICS: DeclaredSemantics = DeclaredSemantics {
+        scope: "probe::grown",
+        structure: DeclaredStructure {
+            // `no_store_writes` cannot coexist with a `stores` row (the
+            // loader drops the whole block as contradictory), so this plan
+            // pairs the *other* effect with one.
+            effects: &[DeclaredEffect::NoExternalIo],
+            result: Some(SemanticType::Tcl(TclType::String)),
+            stores: Some(DeclaredStores {
+                targets: &[1, 2],
+                outcome: OutcomeKind::WriteOrPreserve,
+            }),
+            iterate: None,
+        },
+        evaluation: DeclaredEvaluation::Route(EvalRoute::Expression {
+            language: LanguageProfileId::TclExpr,
+        }),
+        option_declines: &[],
+    };
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::grown",
+        semantics: SemanticsDeclaration::Declared(&SEMANTICS),
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    assert!(
+        draft[draft::UNRENDERABLE_KEY]
+            .as_array()
+            .is_none_or(|keys| !keys.iter().any(|k| k.as_str() == Some("semantics"))),
+        "a body-free, option-decline-free plan is fully recoverable: {draft}"
+    );
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text.contains("effects {no_external_io}"),
+        "{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("result -semantic string"),
+        "{}",
+        trip.text
+    );
+    assert!(
+        trip.text
+            .contains("stores -targets {1 2} -outcome write_or_preserve"),
+        "{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("evaluate -expression tcl.expr"),
+        "{}",
+        trip.text
+    );
+    assert_eq!(
+        trip.reloaded["semantics"], draft["semantics"],
+        "the reloaded plan is byte-for-byte the drafted one:\n{}",
+        trip.text
+    );
+}
+
+/// Native resolver declarations and their capability sets are one contract.
+///
+#[test]
+fn cardinality_role_contract_survives_native_spectcl_and_rust_rendering() {
+    crate::install_surfaces();
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let spec = registry.get("foreach").expect("native foreach descriptor");
+    let shipped = Value::Object(draft::from_command_spec(spec));
+    let trip = round_trip(&shipped);
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text
+            .contains("arg_role_count_resolver -native foreach::arg_role_count_resolver")
+    );
+    assert_eq!(
+        trip.reloaded["arg_role_count_resolver"],
+        shipped["arg_role_count_resolver"]
+    );
+    assert!(
+        trip.reloaded[draft::UNRENDERABLE_KEY]
+            .as_array()
+            .is_some_and(|keys| keys.iter().any(|key| key == "arg_role_count_resolver"))
+    );
+    let mut authored = shipped.as_object().expect("draft object").clone();
+    authored.insert(
+        "arg_role_count_resolver".into(),
+        serde_json::json!("Some(native_count_roles)"),
+    );
+    assert!(
+        tcl_spec_studio::render_rs::render(&authored)
+            .contains("arg_role_count_resolver: Some(native_count_roles),")
+    );
+}
+
+#[test]
+fn structured_layout_contract_survives_native_spectcl_and_rust_rendering() {
+    crate::install_surfaces();
+    let registry = tcl_registry::CommandRegistry::build_default();
+    let spec = registry.get("regsub").expect("native regsub descriptor");
+    let shipped = Value::Object(draft::from_command_spec(spec));
+    let trip = round_trip(&shipped);
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text
+            .contains("arg_role_layout_resolver -native regsub::arg_role_layout_resolver")
+    );
+    assert_eq!(
+        trip.reloaded["arg_role_layout_resolver"],
+        shipped["arg_role_layout_resolver"]
+    );
+    let mut authored = shipped.as_object().unwrap().clone();
+    authored.insert(
+        "arg_role_layout_resolver".into(),
+        serde_json::json!("Some(native_layout_roles)"),
+    );
+    assert!(
+        tcl_spec_studio::render_rs::render(&authored)
+            .contains("arg_role_layout_resolver: Some(native_layout_roles),")
+    );
+}
+
+/// `binary scan` exercises a subcommand resolver with more than one possible
+/// role, so losing the capability row would make a faithfully rendered pack
+/// fail closed when it is loaded again.
+#[test]
+fn native_resolver_capabilities_survive_the_round_trip() {
+    crate::install_surfaces();
+    let shipped = load_command("binary", "bpf").expect("binary is in the BPF registry");
+    let trip = round_trip(&shipped);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    // `binary scan` reads its roles off the argument count, so the resolver
+    // it ships is the count-aware one.
+    assert_eq!(
+        [
+            "arg_role_count_resolver -native binary::scan::arg_role_count_resolver",
+            "arg_role_resolver -native",
+            "arg_role_layout_resolver -native",
+        ]
+        .map(|row| trip.text.matches(row).count()),
+        [1, 0, 0],
+        "only binary scan owns a native role resolver:\n{}",
+        trip.text
+    );
+    let scan_roles = |draft: &Value| {
+        draft["subcommands"]
+            .as_array()
+            .and_then(|subcommands| subcommands.iter().find(|sub| sub["name"] == "scan"))
+            .map(|scan| scan["arg_role_resolver_roles"].clone())
+    };
+    assert_eq!(
+        scan_roles(&trip.reloaded),
+        scan_roles(&shipped),
+        "{}",
+        trip.text
+    );
+}
+
+/// **The gate.** Every command of every browsable dialect renders to `SpecTcl`,
+/// loads back, and drafts equal — except on the documented [`GAPS`].
+#[test]
+#[allow(clippy::too_many_lines)]
+fn every_command_in_every_dialect_round_trips_through_spectcl() {
+    crate::install_surfaces();
+    let mut report = String::new();
+    let mut failures: Vec<String> = Vec::new();
+    let mut total = 0usize;
+    let mut clean = 0usize;
+    // key → (commands affected, one example)
+    let mut lossy: BTreeMap<String, (usize, String)> = BTreeMap::new();
+    let mut noticed: BTreeMap<String, (usize, String)> = BTreeMap::new();
+
+    let dialects: Vec<_> = browsable_dialects()
+        .map(|(dialect, _)| {
+            let names = command_names(dialect);
+            let registry = tcl_spec_studio::environment::store_for_dialect(dialect);
+            let specs: Vec<&'static tcl_registry::CommandSpec> = names
+                .iter()
+                .map(|name| {
+                    registry.get(name).unwrap_or_else(|| {
+                        panic!("{name} is listed in {dialect} but does not load")
+                    })
+                })
+                .collect();
+            (dialect, names, specs)
+        })
+        .collect();
+
+    // A command name can resolve to different immutable specs on different
+    // version/dialect surfaces, so those variants cannot share one pack. Put
+    // the first variant of every name in pack zero, the second in pack one,
+    // and so on. Every distinct spec is rendered and evaluated exactly once,
+    // while every dialect/name position below still compares its exact spec.
+    let mut variants: BTreeMap<&'static str, Vec<&'static tcl_registry::CommandSpec>> =
+        BTreeMap::new();
+    for (_, _, specs) in &dialects {
+        for &spec in specs {
+            let same_name = variants.entry(spec.name).or_default();
+            if !same_name.iter().any(|other| std::ptr::eq(*other, spec)) {
+                same_name.push(spec);
+            }
+        }
+    }
+    let pack_count = variants.values().map(Vec::len).max().unwrap_or_default();
+    let mut groups = vec![Vec::new(); pack_count];
+    for same_name in variants.values() {
+        for (index, &spec) in same_name.iter().enumerate() {
+            groups[index].push(spec);
+        }
+    }
+
+    // spec allocation → (source draft, reloaded draft, losses, fixture text)
+    let mut trips: HashMap<
+        *const tcl_registry::CommandSpec,
+        (Value, Value, Vec<render_spectcl::Loss>, usize),
+    > = HashMap::new();
+    let mut fixture_texts = Vec::with_capacity(groups.len());
+    for (index, specs) in groups.into_iter().enumerate() {
+        let drafts: Vec<draft::Draft> = specs
+            .iter()
+            .map(|spec| draft::from_command_spec(spec))
+            .collect();
+        let (text, command_losses) = render_spectcl::render_pack_reporting_by_command(
+            &drafts,
+            &format!("round-trip-{index}"),
+        );
+        let losses: BTreeMap<&str, &[render_spectcl::Loss]> = command_losses
+            .iter()
+            .map(|report| (report.command.as_str(), report.losses.as_slice()))
+            .collect();
+        let pack = spectcl::evaluate_pack(&text);
+        for notice in pack
+            .notices
+            .iter()
+            .filter(|notice| !is_policy_report(&notice.message))
+        {
+            let notice = notice.to_string();
+            let entry = noticed
+                .entry(notice_shape(&notice))
+                .or_insert_with(|| (0, format!("fixture {index}: {notice}")));
+            entry.0 += 1;
+        }
+        for (spec, draft) in specs.into_iter().zip(drafts) {
+            let reloaded = pack.command(spec.name).map_or(Value::Null, |command| {
+                Value::Object(draft::from_command_spec(command.spec))
+            });
+            trips.insert(
+                std::ptr::from_ref(spec),
+                (
+                    Value::Object(draft),
+                    reloaded,
+                    losses.get(spec.name).copied().unwrap_or_default().to_vec(),
+                    index,
+                ),
+            );
+        }
+        fixture_texts.push(text);
+    }
+
+    for (dialect, names, specs) in dialects {
+        let mut dialect_total = 0usize;
+        let mut dialect_clean = 0usize;
+        for (name, spec) in names.into_iter().zip(specs) {
+            let (shipped, reloaded, losses, fixture_index) = trips
+                .get(&std::ptr::from_ref(spec))
+                .unwrap_or_else(|| panic!("{dialect}/{name}: spec was not round-tripped"));
+            let text = &fixture_texts[*fixture_index];
+            total += 1;
+            dialect_total += 1;
+
+            assert!(
+                !reloaded.is_null(),
+                "{dialect}/{name}: the rendered pack does not declare the command:\n{text}"
+            );
+
+            let found = diffs(reloaded, shipped);
+            if found.is_empty() {
+                clean += 1;
+                dialect_clean += 1;
+                continue;
+            }
+            let reported: BTreeSet<&str> = losses.iter().map(|loss| loss.key.as_str()).collect();
+            for diff in &found {
+                let field = field_of(&diff.key);
+                // Four ways a difference is legitimate: the field is in the
+                // renderer's own gap register, the renderer said at render
+                // time that it could not carry it, it is the implied
+                // command-prefix role, or it is a nested row's excluded
+                // native compilation.
+                let documented = render_spectcl::gap(field)
+                    .map(|gap| format!("{field} ({:?})", gap.kind))
+                    .or_else(|| {
+                        reported
+                            .contains(field)
+                            .then(|| format!("{field} (unwritable text)"))
+                    })
+                    .or_else(|| {
+                        (field == "arg_roles"
+                            && at_level(&diff.key, reloaded)
+                                .zip(at_level(&diff.key, shipped))
+                                .is_some_and(|(a, b)| only_implied_command_prefix_roles(a, b)))
+                        .then(|| "arg_roles (implied by -appends)".to_owned())
+                    })
+                    .or_else(|| {
+                        (field == "sub_subcommands"
+                            && reported.contains("nested_native_compilation")
+                            && at_level(&diff.key, reloaded)
+                                .zip(at_level(&diff.key, shipped))
+                                .is_some_and(|(a, b)| only_nested_native_compilation(a, b)))
+                        .then(|| "sub_subcommands (nested native_compilation, Excluded)".to_owned())
+                    });
+                match documented {
+                    Some(bucket) => {
+                        let entry = lossy
+                            .entry(bucket)
+                            .or_insert_with(|| (0, format!("{dialect}/{name}")));
+                        entry.0 += 1;
+                    }
+                    None => {
+                        failures.push(format!(
+                            "{dialect}/{name}: {} \n        rendered: {}\n        shipped : {}",
+                            diff.key, diff.rendered, diff.shipped
+                        ));
+                    }
+                }
+            }
+        }
+        let _ = writeln!(
+            report,
+            "{dialect:>10}: {dialect_clean:>4} / {dialect_total:>4} commands round-trip with no \
+             difference at all ({:.1}%)",
+            100.0 * f64::from(u32::try_from(dialect_clean).unwrap_or(u32::MAX))
+                / f64::from(u32::try_from(dialect_total.max(1)).unwrap_or(u32::MAX))
+        );
+    }
+
+    let _ = writeln!(
+        report,
+        "\n     total: {clean} / {total} commands round-trip with no difference at all"
+    );
+    let _ = writeln!(
+        report,
+        "     distinct specs rendered and evaluated once: {} in {} conflict-free packs",
+        trips.len(),
+        fixture_texts.len()
+    );
+    let _ = writeln!(report, "\nDocumented losses, by field:");
+    for (key, (count, example)) in &lossy {
+        let _ = writeln!(report, "  {count:>5}  {key}   e.g. {example}");
+    }
+    if !noticed.is_empty() {
+        let _ = writeln!(report, "\nLoader notices raised by rendered packs:");
+        for (shape, (count, example)) in &noticed {
+            let _ = writeln!(report, "  {count:>5}  {shape}   e.g. {example}");
+        }
+    }
+    let _ = writeln!(report, "\nGap register (render_spectcl::GAPS):");
+    for gap in render_spectcl::GAPS {
+        let _ = writeln!(
+            report,
+            "  {:<28} {:?}  {}",
+            gap.key,
+            gap.kind,
+            match gap.kind {
+                GapKind::DraftOpaque | GapKind::LoaderGap | GapKind::PackLevel => gap.spelling,
+                GapKind::Excluded => "excluded from what a pack may author",
+            }
+        );
+    }
+
+    println!("{report}");
+    assert!(
+        failures.is_empty(),
+        "{} undocumented round-trip difference(s), {} shown:\n{}\n{report}",
+        failures.len(),
+        failures.len().min(40),
+        failures
+            .iter()
+            .take(40)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+    assert!(
+        noticed.is_empty(),
+        "a rendered pack must load without notices; got:\n{}\n{report}",
+        noticed
+            .iter()
+            .map(|(shape, (count, example))| format!("  {count:>5}  {shape}   e.g. {example}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+/// Every shipped definer grammar, spelt out inline rather than named, renders
+/// and reloads as itself: every member row with its `-effect` (and a
+/// wrapper's `-shift`), every `member_option`, and the object-model rows.
+/// Seeding names a grammar whose data a shipped one equals, so the reloaded
+/// command drafts as the shipped name again — the identity the round trip
+/// relies on. The shipped commands only ever *name* these grammars, so this
+/// is what exercises the class families' inline spelling.
+///
+/// The exception is a grammar with native object-method operations, which
+/// only its shipped name carries.
+#[test]
+fn every_shipped_grammar_spelt_inline_reloads_as_itself() {
+    crate::install_surfaces();
+    for (name, grammar) in tcl_spectcl::SHIPPED_DEFINITION_BODIES {
+        let block = draft::definition_body_block(grammar);
+        let mut command = draft::default_command_draft();
+        command.insert("name".to_owned(), Value::from("probe::definer"));
+        command.insert("definition_body".to_owned(), block.clone());
+        let (text, losses) = render_spectcl::render_pack_reporting(&[command], "probe");
+        // A pack cannot author an audited native object-method operation (the
+        // loader's `builtin_object_method` row has no word for one), so a
+        // grammar carrying any is preserved by its shipped name alone: spelt
+        // inline it is omitted and reported, never written thinner.
+        if grammar
+            .builtin_object_methods
+            .iter()
+            .any(|method| method.operation.is_some())
+        {
+            assert!(
+                !text.contains("definition_body {"),
+                "{name} carries native operations and is not written inline:\n{text}"
+            );
+            assert_eq!(
+                losses
+                    .iter()
+                    .map(|loss| loss.key.as_str())
+                    .collect::<Vec<_>>(),
+                ["definition_body"],
+                "{name}: the omitted block is the one reported loss:\n{text}"
+            );
+            continue;
+        }
+        assert!(losses.is_empty(), "{name} renders whole: {losses:?}");
+        assert!(
+            text.contains("definition_body {"),
+            "{name} is written inline:\n{text}"
+        );
+        let pack = spectcl::evaluate_pack(&text);
+        assert!(
+            pack.notices
+                .iter()
+                .all(|notice| is_policy_report(&notice.message)),
+            "{name} reloads without notices: {:#?}\n{text}",
+            pack.notices
+        );
+        let reloaded = pack
+            .command("probe::definer")
+            .and_then(|command| command.spec.definition_body)
+            .unwrap_or_else(|| panic!("{name} reloads a grammar:\n{text}"));
+        assert_eq!(
+            draft::definition_body_block(reloaded),
+            block,
+            "{name} reloads as itself:\n{text}"
+        );
+        let redrafted =
+            draft::from_command_spec(pack.command("probe::definer").expect("command").spec);
+        assert_eq!(
+            redrafted.get("definition_body"),
+            Some(&Value::from(*name)),
+            "{name}: a grammar equal to a shipped one drafts as its name"
+        );
+    }
+}
+
+/// A notice's shape — its message with the specific word stripped — so the
+/// report groups thousands of notices into a handful of causes.
+fn notice_shape(notice: &str) -> String {
+    let message = notice.rsplit(": ").next().unwrap_or(notice);
+    let mut out = String::new();
+    let mut in_quote = false;
+    for c in message.chars() {
+        if c == '`' {
+            in_quote = !in_quote;
+            out.push('`');
+            if in_quote {
+                out.push('…');
+            }
+            continue;
+        }
+        if !in_quote {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// The eleven ported packs are the style exemplars, so rendering their own
+/// drafts back out is the closest thing to a diff against a hand-written file.
+///
+/// Differences are expected and allowed — a renderer writes what a draft
+/// holds, not what an author's comments and blank lines said — so this reports
+/// them rather than asserting on them. What it *does* assert is that the
+/// rendered text loads again and produces the same draft: the round-trip gate,
+/// applied to the packs the syntax was designed from.
+#[test]
+fn the_twelve_port_fixtures_render_and_reload_as_themselves() {
+    crate::install_surfaces();
+    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/design/spec-dsl-examples");
+    let mut report = String::new();
+    let mut failures: Vec<String> = Vec::new();
+
+    let mut files: Vec<String> = std::fs::read_dir(&dir)
+        .expect("the spec-dsl-examples directory")
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.ends_with(".tclspec"))
+        .collect();
+    files.sort();
+    assert_eq!(files.len(), 12, "the twelve ports: {files:?}");
+
+    for file in &files {
+        let source = std::fs::read_to_string(dir.join(file)).expect("a port");
+        let hand = spectcl::evaluate_pack(&source);
+        let drafts: Vec<draft::Draft> = hand
+            .commands
+            .iter()
+            .map(|command| draft::from_command_spec(command.spec))
+            .collect();
+        let (rendered, losses) = render_spectcl::render_pack_reporting(&drafts, &hand.name);
+        let reloaded = spectcl::evaluate_pack(&rendered);
+
+        let hand_lines = source.lines().count();
+        let rendered_lines = rendered.lines().count();
+        let _ = writeln!(
+            report,
+            "\n=== {file}: hand-written {hand_lines} lines, rendered {rendered_lines} lines, \
+             {} notice(s) on reload",
+            reloaded.notices.len()
+        );
+        for notice in reloaded
+            .notices
+            .iter()
+            .filter(|notice| !is_policy_report(&notice.message))
+        {
+            failures.push(format!("{file}: reloading the rendered pack: {notice}"));
+        }
+
+        for command in &hand.commands {
+            let name = command.spec.name;
+            let before = Value::Object(draft::from_command_spec(command.spec));
+            let after = reloaded.command(name).map_or_else(
+                || panic!("{file}: the rendered pack lost `{name}`"),
+                |c| Value::Object(draft::from_command_spec(c.spec)),
+            );
+            let found = diffs(&after, &before);
+            let _ = writeln!(report, "  {name}: {} differing field(s)", found.len());
+            for diff in &found {
+                let field = field_of(&diff.key);
+                // A gap the register names, or a loss the render reported.
+                let documented = render_spectcl::gap(field).is_some()
+                    || losses.iter().any(|loss| loss.key == field);
+                let _ = writeln!(
+                    report,
+                    "    {} {}\n        rendered: {}\n        hand    : {}",
+                    if documented { "[documented]" } else { "[FAIL]" },
+                    diff.key,
+                    diff.rendered,
+                    diff.shipped
+                );
+                if !documented {
+                    failures.push(format!("{file}/{name}: {}", diff.key));
+                }
+            }
+            // The style check: where the renderer's output differs in *shape*
+            // from the hand-written file, say so rather than pretend.
+            let hand_statements = statement_words(&source, name);
+            let rendered_statements = statement_words(&rendered, name);
+            let only_hand: Vec<&String> = hand_statements
+                .difference(&rendered_statements)
+                .take(12)
+                .collect();
+            let only_rendered: Vec<&String> = rendered_statements
+                .difference(&hand_statements)
+                .take(12)
+                .collect();
+            if !only_hand.is_empty() || !only_rendered.is_empty() {
+                let _ = writeln!(
+                    report,
+                    "    style: statements only in the hand-written file: {only_hand:?}\n    \
+                     style: statements only in the rendered file:     {only_rendered:?}"
+                );
+            }
+        }
+    }
+
+    println!("{report}");
+    assert!(
+        failures.is_empty(),
+        "{} undocumented difference(s) rendering the ports:\n{}\n{report}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+/// The set of property words used inside a pack's command blocks, for the
+/// shape comparison. Deliberately crude: it is a report, not an assertion.
+fn statement_words(source: &str, _command: &str) -> BTreeSet<String> {
+    source
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter_map(|line| line.split_whitespace().next())
+        .filter(|word| {
+            word.chars()
+                .all(|c| c.is_ascii_lowercase() || c == '_' || c.is_ascii_digit())
+        })
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+/// A second-level subcommand that carries its own option table is written as a
+/// **block**, and the block survives the round trip.
+///
+/// `namespace ensemble create` and `configure` are the case the field exists
+/// for: two different C option tables (`ensembleCreateOptions` /
+/// `ensembleConfigOptions`, `tclEnsemble.c`), so a pack that could only say
+/// one of them would silently re-merge the bug the split removed.
+#[test]
+fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
+    crate::install_surfaces();
+    let shipped = load_command("namespace", "tcl").expect("tcl has `namespace`");
+    let trip = round_trip(&shipped);
+
+    assert!(
+        trip.text.contains("sub_subcommand create") && trip.text.contains("option -command"),
+        "`create`'s own table must be written out:\n{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("sub_subcommand configure") && trip.text.contains("option -namespace"),
+        "`configure`'s own table must be written out:\n{}",
+        trip.text
+    );
+    // `exists` declares none, so it stays a flag row: its statement never
+    // opens a block, however the row happens to wrap.
+    assert!(
+        !trip
+            .text
+            .lines()
+            .any(|l| l.trim_start().starts_with("sub_subcommand exists") && l.ends_with('{')),
+        "an operation with no table of its own keeps the flag row:\n{}",
+        trip.text
+    );
+
+    let reloaded = &trip.reloaded;
+    let ensemble = reloaded["subcommands"]
+        .as_array()
+        .expect("subcommands is a list")
+        .iter()
+        .find(|sub| sub["name"] == "ensemble")
+        .expect("`namespace ensemble` survives");
+    let ops = ensemble["sub_subcommands"]
+        .as_array()
+        .expect("sub_subcommands is a list");
+    let names_of = |op: &str| -> Vec<String> {
+        ops.iter()
+            .find(|row| row["name"] == op)
+            .and_then(|row| row["options"].as_array())
+            .map_or_default(|opts| {
+                opts.iter()
+                    .map(|o| o["name"].as_str().unwrap_or_default().to_owned())
+                    .collect()
+            })
+    };
+    assert_eq!(
+        names_of("create"),
+        vec![
+            "-command",
+            "-map",
+            "-parameters",
+            "-prefixes",
+            "-subcommands",
+            "-unknown"
+        ],
+    );
+    assert_eq!(
+        names_of("configure"),
+        vec![
+            "-map",
+            "-namespace",
+            "-parameters",
+            "-prefixes",
+            "-subcommands",
+            "-unknown"
+        ],
+    );
+    assert_eq!(names_of("exists"), [] as [std::string::String; 0]);
+}
+
+/// An **empty** option block is a claim of its own and survives as one.
+///
+/// `sub_subcommand exists {}` says "this operation takes no options"; writing
+/// no block at all says "this operation declares nothing, use the
+/// subcommand's". If the DSL could only spell the second, the round trip would
+/// quietly turn `namespace ensemble exists`'s empty table back into an
+/// inheriting one and re-offer it the parent's union.
+#[test]
+fn an_empty_sub_subcommand_option_block_means_empty_not_inherit() {
+    crate::install_surfaces();
+    let shipped = load_command("namespace", "tcl").expect("tcl has `namespace`");
+    let trip = round_trip(&shipped);
+
+    assert!(
+        trip.text
+            .lines()
+            .any(|l| l.trim_start().starts_with("sub_subcommand exists")
+                && l.trim_end().ends_with("{}")),
+        "`exists`'s empty table must be written as an empty block:\n{}",
+        trip.text
+    );
+
+    let ops = trip.reloaded["subcommands"]
+        .as_array()
+        .expect("subcommands is a list")
+        .iter()
+        .find(|sub| sub["name"] == "ensemble")
+        .expect("`namespace ensemble` survives")["sub_subcommands"]
+        .as_array()
+        .expect("sub_subcommands is a list")
+        .clone();
+    let options_of = |op: &str| -> Value {
+        ops.iter()
+            .find(|row| row["name"] == op)
+            .map_or(Value::Null, |row| row["options"].clone())
+    };
+    assert_eq!(
+        options_of("exists"),
+        Value::Array(vec![]),
+        "`exists` reloads as an empty table, not a null one"
+    );
+    assert!(
+        options_of("create")
+            .as_array()
+            .is_some_and(|o| !o.is_empty()),
+        "`create` still reloads with its own table"
+    );
+}

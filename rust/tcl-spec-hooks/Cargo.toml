@@ -48,15 +48,5 @@ tcl-dialect = { path = "../tcl-dialect" }
 tcl-vm = { path = "../tcl-vm" }
 tcl-syntax = { path = "../tcl-syntax" }
 
-[dev-dependencies]
-tcl-compiler = { path = "../tcl-compiler" }
-# The runtime as a second engine (its `engine` feature): every family's test
-# runs on it as on the VM, so a body answers the same on both.
-tcl-runtime = { path = "../../runtime/rust", features = ["engine"] }
-# Deliberately no `tcl-spectcl`, even as a dev-dependency: the adapter that
-# joins a loaded pack to this host now lives in `tcl-spectcl::hooks`, so the
-# dependency runs one way — loader over host — and the pack-source proving case
-# lives in that crate's tests.
-
 [lints]
 workspace = true

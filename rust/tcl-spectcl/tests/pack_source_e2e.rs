@@ -19,7 +19,7 @@
 //! From `.tclspec` source to a folded call site, through the real loader and
 //! the real install path.
 //!
-//! `tcl-spec-hooks/tests/const_fold_e2e.rs` proves the host and the optimiser
+//! `tcl-spec-hooks-it/tests/it_3/const_fold_e2e.rs` proves the host and the optimiser
 //! agree; this proves the *seam* between the loader and the host — that a hook
 //! written in a pack file as a `const_fold {words ctx} { … }` statement,
 //! carried by the loader as a `HookDecl`, becomes the function pointer the

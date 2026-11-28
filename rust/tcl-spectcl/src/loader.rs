@@ -49,7 +49,7 @@
 //! draft from through the ordinary `draft::from_command_spec`. Loading a pack
 //! and browsing a shipped command therefore produce drafts by the *same* code,
 //! which is what makes the per-port equivalence gate in
-//! `tcl-spec-studio/tests/it_3/spectcl_ports.rs` meaningful.
+//! `tcl-spec-studio-it/tests/it_3/spectcl_ports.rs` meaningful.
 //!
 //! The frozen syntax is `docs/design/spec-dsl-examples/README.md`; the
 //! architecture around it is `docs/design/registry/spec-packs.md`.

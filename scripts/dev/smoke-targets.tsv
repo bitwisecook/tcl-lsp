@@ -4,9 +4,9 @@ rust/tcl-cli/tests/cli/inspection_verbs.rs	tcl-cli	test	cli
 rust/tcl-codegen/src/lib.rs	tcl-codegen	lib	tcl_codegen
 rust/tcl-compiler/src/compilation_unit/smoke.rs	tcl-compiler	lib	tcl_compiler
 rust/tcl-cshim/src/lib.rs	tcl-cshim	lib	tcl_cshim
-rust/tcl-cshim/tests/it_5/factory.rs	tcl-cshim	test	it_5
-rust/tcl-cshim/tests/it_5/sandbox_isolation.rs	tcl-cshim	test	it_5
-rust/tcl-cshim/tests/pkga_e2e.rs	tcl-cshim	test	pkga_e2e
+rust/tcl-cshim-it/tests/it_5/factory.rs	tcl-cshim-it	test	it_5
+rust/tcl-cshim-it/tests/it_5/sandbox_isolation.rs	tcl-cshim-it	test	it_5
+rust/tcl-cshim-it/tests/it_5/pkga_e2e.rs	tcl-cshim-it	test	it_5
 rust/tcl-expr/src/expr/parser.rs	tcl-expr	lib	tcl_expr
 rust/tcl-irule-test/src/embedded.rs	tcl-irule-test	lib	tcl_irule_test
 rust/tcl-lexer/src/lexer/tests.rs	tcl-lexer	lib	tcl_lexer

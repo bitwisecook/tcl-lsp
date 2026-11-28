@@ -2,24 +2,13 @@
 # A count includes the tests that then fail on the poisoned registry cache mutex: they read the registry too. A test target with no such test has no row.
 # Surveyed 28 November 2026 with no such test: tcl-names, tcl-pkg, tcl-bigip-io, tcl-engine-wasm, runtime/rust (its interpreter construction installs the shipped list).
 crate	target	count	note
-tcl-spec-hooks	lib	7	7 direct, 0 via the poisoned cache
-tcl-spec-hooks	const_fold_e2e	6	6 direct, 0 via the poisoned cache
-tcl-spec-hooks	containment_e2e	5	5 direct, 0 via the poisoned cache
-tcl-spec-hooks	families_e2e	2	2 direct, 0 via the poisoned cache
-bpf-tcl-codegen	lib	30	1 direct, 29 via the poisoned cache
-tcl-cshim	it_5	22	22 direct, 0 via the poisoned cache
-tcl-cshim	pkga_e2e	11	11 direct, 0 via the poisoned cache
 f5-xc	lib	15	1 direct, 14 via the poisoned cache
 f5-xc	differential	1	1 direct, 0 via the poisoned cache
 f5-xc	model	26	1 direct, 25 via the poisoned cache
 tcl-irule-test	lib	43	1 direct, 42 via the poisoned cache
 bpf-tcl-ir	lib	62	1 direct, 61 via the poisoned cache
 tcl-engine-tclvm	lib	61	55 direct, 6 via the poisoned cache
-tcl-engine-tclvm	doors	15	15 direct, 0 via the poisoned cache
 tcl-spec-studio	lib	108	39 direct, 69 via the poisoned cache
-tcl-spec-studio	it_2	3	1 direct, 2 via the poisoned cache
-tcl-spec-studio	it_3	24	1 direct, 23 via the poisoned cache
-tcl-spec-studio	it_4	14	10 direct, 4 via the poisoned cache
 tcl-spectcl	lib	106	27 direct, 79 via the poisoned cache
 tcl-spectcl	eval_loader	29	28 direct, 1 via the poisoned cache
 tcl-spectcl	golden_packs	2	2 direct, 0 via the poisoned cache

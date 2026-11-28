@@ -463,6 +463,15 @@ dependencies = [
  "bpf-tcl-ir",
  "tcl-core-types",
  "tcl-lexer",
+]
+
+[[package]]
+name = "bpf-tcl-codegen-it"
+version = "0.1.0"
+dependencies = [
+ "bpf-tcl-codegen",
+ "bpf-tcl-ir",
+ "tcl-core-types",
  "tcl-registry",
 ]
 
@@ -4680,6 +4689,19 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-engine-api",
+ "tcl-native-model",
+ "tcl-registry",
+ "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-cshim-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
+ "tcl-cshim",
+ "tcl-dialect",
+ "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-native-model",
  "tcl-registry",
@@ -4761,6 +4783,15 @@ dependencies = [
  "tcl-runtime-api",
  "tcl-syntax",
  "tcl-vm",
+]
+
+[[package]]
+name = "tcl-engine-tclvm-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-engine-api",
+ "tcl-engine-tclvm",
+ "tcl-registry",
 ]
 
 [[package]]
@@ -5224,6 +5255,19 @@ dependencies = [
 name = "tcl-spec-hooks"
 version = "0.1.0"
 dependencies = [
+ "tcl-dialect",
+ "tcl-engine-api",
+ "tcl-engine-tclvm",
+ "tcl-native-model",
+ "tcl-registry",
+ "tcl-syntax",
+ "tcl-vm",
+]
+
+[[package]]
+name = "tcl-spec-hooks-it"
+version = "0.1.0"
+dependencies = [
  "tcl-compiler",
  "tcl-dialect",
  "tcl-engine-api",
@@ -5231,8 +5275,7 @@ dependencies = [
  "tcl-native-model",
  "tcl-registry",
  "tcl-runtime",
- "tcl-syntax",
- "tcl-vm",
+ "tcl-spec-hooks",
 ]
 
 [[package]]
@@ -5250,6 +5293,17 @@ dependencies = [
  "tcl-source",
  "tcl-spectcl",
  "tcl-syntax",
+]
+
+[[package]]
+name = "tcl-spec-studio-it"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-dialect",
+ "tcl-registry",
+ "tcl-spec-studio",
+ "tcl-spectcl",
 ]
 
 [[package]]

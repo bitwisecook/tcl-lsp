@@ -524,7 +524,7 @@ authored header's (`TCL_MAJOR_VERSION=8`). In the code,
 `rust/tcl-cshim/src/obj.rs` publishes the `Tcl_Obj` layout; `rust/tcl-cshim/src/doors.rs` implements `Tcl_GetVar2Ex`,
 `Tcl_ObjSetVar2`, `Tcl_UnsetVar2` and `Tcl_EvalObjEx` over the engine interface's
 variable door and in-invocation eval door;
-`rust/tcl-cshim/tests/pkga_e2e.rs`'s byte-for-byte expectations, captured
+`rust/tcl-cshim-it/tests/it_5/pkga_e2e.rs`'s byte-for-byte expectations, captured
 against Tcl 9.0.4's own `tcl.h`, are the shared conformance vectors for
 both legs.
 
@@ -839,7 +839,7 @@ frozen-syntax memo's coverage matrix, the renderer emitting it, and
 (`rust/tcl-spec-studio/src/store.rs` reports the grammar itself, and the
 form shows its rows read-only).
 
-**Tests.** `rust/tcl-spec-studio/tests/it_3/spectcl_ports.rs`'s
+**Tests.** `rust/tcl-spec-studio-it/tests/it_3/spectcl_ports.rs`'s
 `the_clause_grammar_derivation_agrees_with_the_shipped_walk` holds the `if`
 and `foreach` ports' grammars to the shipped ones and walks each call corpus
 through both, including the two subtle `if` rows (`if else {a}` is valid; a
@@ -1500,7 +1500,7 @@ separate field at all.
 **The studio field.** Neither `pattern_arg_resolver` nor the option
 effects has a `GAPS` row: the resolver is an escape hatch no shipped spec
 sets, and `option -effect` / `option_effect_family` are in the option-row
-form with the loader spelling (`rust/tcl-spec-studio/tests/it_4/option_row_editing.rs`
+form with the loader spelling (`rust/tcl-spec-studio-it/tests/it_4/option_row_editing.rs`
 is that form's gate): an option row's `effect` is drafted and written back,
 and `option_effect_families` has its generator and reverse parser.
 
@@ -2166,7 +2166,7 @@ struct ArtefactIdentityManifest {
   (`runtime/rust/src/engine.rs`, behind its `engine` feature) and compiled to
   `wasm32` under wasmtime (`rust/tcl-engine-wasm`), so the hook host runs on it
   and a body is tested on two engines: every family in
-  `rust/tcl-spec-hooks/tests/families_e2e.rs` runs on the VM's engine and the
+  `rust/tcl-spec-hooks-it/tests/it_3/families_e2e.rs` runs on the VM's engine and the
   runtime's, and the runtime's two forms are held to the same cases from one
   copy (`runtime/rust/tests/common/engine_cases.rs`). The VM shipped to WASM
   (`rust/tcl-vm-wasm`) is not an engine of its own: its browser host evaluates
@@ -2487,17 +2487,17 @@ flowchart LR
 - `rust/tcl-spectcl/tests/it_4/analyser_hooks.rs` — pins the analyser-hook stamps and, through `analyser_hook_stamps_are_disjoint_from_definer_families`, the member-axis separation
 - `runtime/rust/src/interp.rs`, `rust/tcl-vm/src/interp.rs` — `an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it`, the per-token guard contract in each runtime
 - `rust/tcl-codegen/tests/wasm_real_link.rs` — `guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime`, the guarded path against the real runtime, and `a_module_with_a_foreign_intrinsic_table_is_refused`, the link check against the runtime's own `tcl_runtime_identity`
-- `rust/tcl-cshim/tests/it_5/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
+- `rust/tcl-cshim-it/tests/it_5/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, the gate the argument-role hook body keeps
-- `rust/tcl-spec-studio/tests/it_3/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, over the two ports and every grammar-carrying command's round trip
-- `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` — the round trip that carries `semantic_operation`, `definition_body` and `alias_of` (`alias_of_survives_the_round_trip`) with no `GAPS` row
-- `rust/tcl-spec-studio/tests/it_4/option_row_editing.rs` — the option-row form with `-effect` and `option_effect_family`
+- `rust/tcl-spec-studio-it/tests/it_3/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, over the two ports and every grammar-carrying command's round trip
+- `rust/tcl-spec-studio-it/tests/it_4/spectcl_roundtrip.rs` — the round trip that carries `semantic_operation`, `definition_body` and `alias_of` (`alias_of_survives_the_round_trip`) with no `GAPS` row
+- `rust/tcl-spec-studio-it/tests/it_4/option_row_editing.rs` — the option-row form with `-effect` and `option_effect_family`
 - `rust/tcl-spectcl/tests/it_5/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`, and `the_extension_default_is_at_the_top_of_every_axis`
 - `rust/tcl-registry/tests/it_5/tcl91_dialect.rs` — the availability of `subst`'s positive option family
 - `rust/tcl-compiler/tests/it_4/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
-- `rust/tcl-cshim/tests/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs, `the_loaded_report_bridges_to_the_default_fact`, the shim's report declared at the extension default, and `load_through_the_host_bridge_defines_the_commands` with `the_same_vectors_run_through_the_host_load_bridge`, the host's `load`
+- `rust/tcl-cshim-it/tests/it_5/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs, `the_loaded_report_bridges_to_the_default_fact`, the shim's report declared at the extension default, and `load_through_the_host_bridge_defines_the_commands` with `the_same_vectors_run_through_the_host_load_bridge`, the host's `load`
 - `rust/tcl-spectcl/tests/it_2/i6_security_floor.rs` — the floor and its take-shipped extension
 - `rust/tcl-spectcl/tests/it_5/codegen_stamps.rs` — rung 3: `a_tcl_body_backed_command_is_inlined_and_admitted`, `a_host_native_backing_never_defines_a_proc` and `a_pack_text_body_that_diverges_turns_the_site_plain`; `rust/tcl-cli/tests/it_5/spec_verbs.rs` — `spec_test_reports_an_arity_divergence` and the verb's other rows
 - `rust/tcl-spectcl/tests/it_3/workspace_packs.rs`, `codegen_stamps.rs` — the stamp rejection rule's two witnesses: a refused stamp under the tier gate, and a bundled `alias_of` stamp whose recorded target identity the VM admits through its alias hop (refused for a proc at the pack name); the claims' admission: a changed pack refuses the site, and a pack's fold is admitted only under its facts; and, in `workspace_packs.rs`, the capability gate: `a_transitive_dependencys_alias_of_is_dropped` and `a_direct_dependency_keeps_alias_of_but_not_a_stamp`

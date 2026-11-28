@@ -4,9 +4,6 @@ bigip-report-gen-rust	rust/bigip-report-gen/rust/src/apm.rs::tests	3	1	0	3
 bigip-report-gen-rust	rust/bigip-report-gen/rust/src/forensics.rs::tests	3	0	0	3
 bigip-report-gen-rust	rust/bigip-report-gen/rust/src/model/config_diagnostic_tests.rs	2	0	0	2
 bigip-report-gen-rust	rust/bigip-report-gen/rust/src/security.rs::tests	1	0	0	1
-bpf-tcl-codegen	rust/bpf-tcl-codegen/src/ebpf/btf.rs::tests	3	1	0	2
-bpf-tcl-codegen	rust/bpf-tcl-codegen/src/ebpf/elf.rs::tests	4	2	0	3
-bpf-tcl-codegen	rust/bpf-tcl-codegen/src/ebpf/emit.rs::tests	4	0	0	5
 bpf-tcl-ir	rust/bpf-tcl-ir/src/capability.rs::original_operand_tests	1	0	2	0
 bpf-tcl-ir	rust/bpf-tcl-ir/src/deploy.rs::original_operand_tests	1	0	2	0
 bpf-tcl-ir	rust/bpf-tcl-ir/src/frontend.rs	1	0	0	1
