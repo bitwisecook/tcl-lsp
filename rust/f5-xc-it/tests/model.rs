@@ -37,6 +37,7 @@ fn route_for_pool<'a>(
 
 #[test]
 fn simple_pool_builds_route_and_pool() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    pool my_pool\n}";
     let result = translate_irule(src);
     assert_eq!(result.origin_pools.len(), 1);
@@ -48,6 +49,7 @@ fn simple_pool_builds_route_and_pool() {
 
 #[test]
 fn pools_are_deduplicated_but_routes_are_not() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/a\"} {\n        pool shared_pool\n    } else {\n        pool shared_pool\n    }\n}";
     let result = translate_irule(src);
     assert_eq!(result.origin_pools.len(), 1);
@@ -57,6 +59,7 @@ fn pools_are_deduplicated_but_routes_are_not() {
 
 #[test]
 fn switch_path_glob_yields_prefix_matches() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    switch -glob [HTTP::path] {\n        \"/api/*\" { pool api_pool }\n        \"/static/*\" { pool static_pool }\n        default { pool default_pool }\n    }\n}";
     let result = translate_irule(src);
     assert_eq!(result.routes.len(), 3);
@@ -70,6 +73,7 @@ fn switch_path_glob_yields_prefix_matches() {
 
 #[test]
 fn starts_with_path_is_prefix_match() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    if {[HTTP::path] starts_with \"/api\"} {\n        pool api_pool\n    }\n}";
     let result = translate_irule(src);
     let route = result
@@ -86,6 +90,7 @@ fn starts_with_path_is_prefix_match() {
 /// a braced one is its text without the braces (#2227, found in review).
 #[test]
 fn a_prefix_is_translated_only_from_fixed_text() {
+    crate::install_surfaces();
     let path_match = |operand: &str| {
         let src = format!(
             "when HTTP_REQUEST {{\n    if {{[HTTP::path] starts_with {operand}}} {{\n        pool api_pool\n    }}\n}}"
@@ -101,6 +106,7 @@ fn a_prefix_is_translated_only_from_fixed_text() {
 
 #[test]
 fn header_insert_records_request_action() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    HTTP::header insert \"X-Custom\" \"value\"\n}";
     let result = translate_irule(src);
     assert_eq!(result.header_actions.len(), 1);
@@ -113,6 +119,7 @@ fn header_insert_records_request_action() {
 
 #[test]
 fn event_shaped_procedure_names_do_not_select_response_event_semantics() {
+    crate::install_surfaces();
     let result = translate_irule(
         "proc ::when::HTTP_RESPONSE {} {HTTP::header insert X-Ordinary ordinary}\n\
          when HTTP_RESPONSE {HTTP::header insert X-Event event}",
@@ -133,6 +140,7 @@ fn event_shaped_procedure_names_do_not_select_response_event_semantics() {
 
 #[test]
 fn header_in_response_event_targets_response() {
+    crate::install_surfaces();
     let src = "when HTTP_RESPONSE {\n    HTTP::header replace \"Server\" \"Acme\"\n}";
     let result = translate_irule(src);
     assert_eq!(result.header_actions.len(), 1);
@@ -142,6 +150,7 @@ fn header_in_response_event_targets_response() {
 
 #[test]
 fn redirect_builds_redirect_route() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    if {[HTTP::path] eq \"/old\"} {\n        HTTP::redirect \"https://new.example.com\"\n    }\n}";
     let result = translate_irule(src);
     let route = result
@@ -156,6 +165,7 @@ fn redirect_builds_redirect_route() {
 
 #[test]
 fn respond_403_builds_deny_policy_rule() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    if {[HTTP::path] starts_with \"/admin\"} {\n        HTTP::respond 403 content \"Forbidden\"\n    }\n}";
     let result = translate_irule(src);
     assert_eq!(result.service_policies.len(), 1);
@@ -167,6 +177,7 @@ fn respond_403_builds_deny_policy_rule() {
 
 #[test]
 fn asm_disable_builds_waf_exclusion() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    if {[HTTP::path] starts_with \"/api\"} {\n        ASM::disable\n    }\n}";
     let result = translate_irule(src);
     assert_eq!(result.waf_exclusion_rules.len(), 1);
@@ -177,6 +188,7 @@ fn asm_disable_builds_waf_exclusion() {
 
 #[test]
 fn untranslatable_event_is_flagged() {
+    crate::install_surfaces();
     let src = "when CLIENT_ACCEPTED {\n    set foo 1\n}";
     let result = translate_irule(src);
     assert_eq!(result.untranslatable_count(), 1);
@@ -188,6 +200,7 @@ fn untranslatable_event_is_flagged() {
 
 #[test]
 fn empty_rule_is_full_coverage() {
+    crate::install_surfaces();
     let result = translate_irule("when HTTP_REQUEST {\n}");
     assert_eq!(result.items, [] as [f5_xc::model::TranslationItem; 0]);
     assert!((result.coverage_pct - 100.0).abs() < 1e-9);
@@ -197,6 +210,7 @@ fn empty_rule_is_full_coverage() {
 // instead of translating to an unconditional catch-all route.
 #[test]
 fn else_body_keeps_enclosing_criteria() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"a.example.com\"} {\n        if {[HTTP::path] starts_with \"/api\"} {\n            pool a-api\n        } else {\n            pool a-web\n        }\n    }\n}";
     let result = translate_irule(src);
 
@@ -220,6 +234,7 @@ fn else_body_keeps_enclosing_criteria() {
 // matches, not prefix matches on the literal pattern.
 #[test]
 fn switch_regexp_path_is_regex_not_prefix() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    switch -regexp [HTTP::path] {\n        {^/api/.*} { pool api_pool }\n    }\n}";
     let result = translate_irule(src);
     let route = route_for_pool(&result, "api_pool").expect("api_pool route");
@@ -232,6 +247,7 @@ fn switch_regexp_path_is_regex_not_prefix() {
 // not a prefix.
 #[test]
 fn switch_exact_path_with_star_is_literal() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    switch [HTTP::path] {\n        \"/a*\" { pool star_pool }\n    }\n}";
     let result = translate_irule(src);
     let route = route_for_pool(&result, "star_pool").expect("star_pool route");
@@ -244,6 +260,7 @@ fn switch_exact_path_with_star_is_literal() {
 // not an exact match on the glob text (which would never match).
 #[test]
 fn switch_glob_host_is_regex() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    switch -glob [HTTP::host] {\n        \"*.example.com\" { pool wild_pool }\n    }\n}";
     let result = translate_irule(src);
     let route = route_for_pool(&result, "wild_pool").expect("wild_pool route");
@@ -256,6 +273,7 @@ fn switch_glob_host_is_regex() {
 // regex.
 #[test]
 fn switch_nocase_glob_host_is_case_insensitive_regex() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    switch -glob -nocase [HTTP::host] {\n        \"*.Example.com\" { pool ci_pool }\n    }\n}";
     let result = translate_irule(src);
     let route = route_for_pool(&result, "ci_pool").expect("ci_pool route");
@@ -272,6 +290,7 @@ fn switch_nocase_glob_host_is_case_insensitive_regex() {
 // the shared body, so no pattern's traffic is silently dropped.
 #[test]
 fn switch_fallthrough_arm_routes_all_patterns() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    switch -glob [HTTP::path] {\n        \"/a*\" - \"/b*\" { pool shared }\n    }\n}";
     let result = translate_irule(src);
     let mut prefixes: Vec<String> = result
@@ -293,6 +312,7 @@ fn switch_fallthrough_arm_routes_all_patterns() {
 // translator must emit both a `/old`-specific route and the catch-all route.
 #[test]
 fn switch_fallthrough_into_default_routes_pattern_and_catch_all() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    switch [HTTP::path] {\n        \"/old\" - default { pool legacy }\n    }\n}";
     let result = translate_irule(src);
     let legacy: Vec<Option<String>> = result
@@ -317,6 +337,7 @@ fn switch_fallthrough_into_default_routes_pattern_and_catch_all() {
 // method criteria the translator recorded.
 #[test]
 fn terraform_simple_route_emits_host_and_method() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"h.example.com\" && [HTTP::method] eq \"POST\"} {\n        pool p\n    }\n}";
     let result = translate_irule(src);
     let tf = render_terraform(&result, "ns", "lb");
@@ -334,6 +355,7 @@ fn terraform_simple_route_emits_host_and_method() {
 // the SAME sanitised label — while the real name is preserved in `name = "…"`.
 #[test]
 fn terraform_pool_name_with_slashes_is_sanitised() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    pool /Common/web-pool\n}";
     let result = translate_irule(src);
     let tf = render_terraform(&result, "ns", "lb");
@@ -386,6 +408,7 @@ fn terraform_pool_name_with_slashes_is_sanitised() {
 // criterion, otherwise every request is redirected.
 #[test]
 fn terraform_redirect_route_emits_host() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"old.example.com\"} {\n        HTTP::redirect \"https://new.example.com\"\n    }\n}";
     let result = translate_irule(src);
     let tf = render_terraform(&result, "ns", "lb");
@@ -404,6 +427,7 @@ fn terraform_redirect_route_emits_host() {
 // criterion.
 #[test]
 fn json_redirect_route_emits_host() {
+    crate::install_surfaces();
     let src = "when HTTP_REQUEST {\n    if {[HTTP::host] eq \"old.example.com\"} {\n        HTTP::redirect \"https://new.example.com\"\n    }\n}";
     let result = translate_irule(src);
     let json = render_json(&result, "ns", "lb");
@@ -421,6 +445,7 @@ fn json_redirect_route_emits_host() {
 // criterion.
 #[test]
 fn json_simple_route_emits_method() {
+    crate::install_surfaces();
     let src =
         "when HTTP_REQUEST {\n    if {[HTTP::method] eq \"POST\"} {\n        pool p\n    }\n}";
     let result = translate_irule(src);
@@ -443,6 +468,7 @@ fn json_simple_route_emits_method() {
 /// (`evidence/tcl/bigip-f5-matches-operator-semantics.md`).
 #[test]
 fn bare_matches_path_is_the_glob_regex() {
+    crate::install_surfaces();
     for operator in ["matches", "matches_glob"] {
         let src = format!(
             "when HTTP_REQUEST {{\n    if {{[HTTP::path] {operator} {{/v[12]/*.json}}}} {{\n        pool api_pool\n    }}\n}}"
@@ -456,4 +482,10 @@ fn bare_matches_path_is_the_glob_regex() {
         assert_eq!(path.match_type, "regex", "{operator}");
         assert_eq!(path.value, r"(?s)^/v[12]/.*\.json$", "{operator}");
     }
+}
+
+/// Installs the shipped command surfaces; every test calls it before its
+/// first registry read.
+fn install_surfaces() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
 }

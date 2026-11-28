@@ -10,6 +10,7 @@ rust/bpf-tcl-codegen-it
 rust/bpf-tcl-ir
 rust/f5-cli
 rust/f5-xc
+rust/f5-xc-it
 rust/tcl-bigip
 rust/tcl-bigip-it
 rust/tcl-bigip-io

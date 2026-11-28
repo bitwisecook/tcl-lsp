@@ -30,7 +30,7 @@ bigip-report-gen-rust::report	the_estate_model_has_the_shape_the_report_renders_
 bigip-report-gen-rust::report	web_shell_irule_surfaces_forensics_tab_without_files
 bpf-tcl::elf	matches_clang_reference_machine_and_type
 bpf-tcl::hardening	stack_pressure_is_reported_with_source_context
-f5-xc::differential	rust_translator_matches_golden_fixture
+f5-xc-it::differential	rust_translator_matches_golden_fixture
 tcl-bigip-query::integration	graph::graph
 tcl-bigip-query::integration	projection::projection
 tcl-bigip-query::integration	registry_refs::projection_pathref_targets_agree_with_the_registry

@@ -72,6 +72,7 @@
 3	bpf-tcl::observability	test	bpf-tcl	observability
 3	bpf-tcl::templates	test	bpf-tcl	templates
 3	f5-xc	lib	f5-xc	f5_xc
+3	f5-xc-it	lib	f5-xc-it	f5_xc_it
 3	tcl-cli::compile_verbs	test	tcl-cli	compile_verbs
 3	tcl-cmd-core	lib	tcl-cmd-core	tcl_cmd_core
 3	tcl-codegen	lib	tcl-codegen	tcl_codegen
@@ -128,8 +129,8 @@
 4	bpf-tcl::kernel_attach	test	bpf-tcl	kernel_attach
 4	bpf-tcl::kernel_codegen	test	bpf-tcl	kernel_codegen
 4	bpf-tcl::kernel_load	test	bpf-tcl	kernel_load
-4	f5-xc::differential	test	f5-xc	differential
-4	f5-xc::model	test	f5-xc	model
+4	f5-xc-it::differential	test	f5-xc-it	differential
+4	f5-xc-it::model	test	f5-xc-it	model
 4	tcl-bigip	lib	tcl-bigip	tcl_bigip
 4	tcl-bigip-io::ucs	test	tcl-bigip-io	ucs
 4	tcl-bytecode	lib	tcl-bytecode	tcl_bytecode

@@ -1523,6 +1523,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "f5-xc-it"
+version = "0.1.0"
+dependencies = [
+ "f5-xc",
+ "serde_json",
+ "tcl-core-types",
+ "tcl-registry",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

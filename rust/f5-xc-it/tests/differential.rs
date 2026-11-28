@@ -81,6 +81,7 @@ fn summarise(source: &str) -> Value {
 
 #[test]
 fn rust_translator_matches_golden_fixture() {
+    crate::install_surfaces();
     let fixture_src = include_str!("differential_fixture.json");
     let cases: Vec<Value> = serde_json::from_str(fixture_src).expect("valid fixture JSON");
 
@@ -112,4 +113,10 @@ fn rust_translator_matches_golden_fixture() {
         cases.len(),
         failures.join("\n\n")
     );
+}
+
+/// Installs the shipped command surfaces; every test calls it before its
+/// first registry read.
+fn install_surfaces() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
 }
