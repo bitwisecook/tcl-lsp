@@ -200,6 +200,7 @@ fn script_error(message: &str, code: &str) -> EngineError {
 
 #[test]
 fn a_host_command_completes_with_the_code_it_answers() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(
         run(
@@ -234,6 +235,7 @@ fn a_host_command_completes_with_the_code_it_answers() {
 
 #[test]
 fn a_host_command_returns_with_the_options_it_answers() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(
         run(
@@ -288,6 +290,7 @@ fn a_host_command_returns_with_the_options_it_answers() {
 
 #[test]
 fn options_a_code_other_than_return_has_no_use_for_are_not_passed_on() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(
         run(
@@ -309,6 +312,7 @@ fn options_a_code_other_than_return_has_no_use_for_are_not_passed_on() {
 
 #[test]
 fn a_break_outside_a_loop_is_what_tcl_says_of_it() {
+    crate::install_surfaces();
     let mut engine = engine();
     for (command, message) in [
         ("hbreak", "invoked \"break\" outside of a loop"),
@@ -326,6 +330,7 @@ fn a_break_outside_a_loop_is_what_tcl_says_of_it() {
 
 #[test]
 fn a_host_command_reads_writes_and_unsets_in_the_frame_that_called_it() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(
         run(&mut engine, "hset x 7; set x"),
@@ -398,6 +403,7 @@ fn a_host_command_reads_writes_and_unsets_in_the_frame_that_called_it() {
 
 #[test]
 fn a_host_command_evaluates_a_script_in_the_calling_frame() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(
         run(&mut engine, "set loc 3; heval {incr loc 10}; set loc"),
@@ -439,6 +445,7 @@ fn a_host_command_evaluates_a_script_in_the_calling_frame() {
 
 #[test]
 fn a_script_that_returns_with_options_gives_the_command_a_return_with_them() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(
         run(
@@ -476,6 +483,7 @@ fn a_script_that_returns_with_options_gives_the_command_a_return_with_them() {
 
 #[test]
 fn an_error_in_an_evaluated_script_keeps_its_message_and_its_code() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(
         run(&mut engine, "heval {error boom {} {MY CODE}}"),
@@ -495,6 +503,7 @@ fn an_error_in_an_evaluated_script_keeps_its_message_and_its_code() {
 
 #[test]
 fn a_script_that_completes_with_a_code_of_its_own_gives_the_command_that_code() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(
         run(
@@ -508,6 +517,7 @@ fn a_script_that_completes_with_a_code_of_its_own_gives_the_command_that_code() 
 
 #[test]
 fn a_command_whose_script_outruns_the_budget_is_told_it_was_the_budget() {
+    crate::install_surfaces();
     let mut engine = engine();
     engine
         .set_budget(Budget::of_commands(5))
@@ -529,6 +539,7 @@ fn a_command_whose_script_outruns_the_budget_is_told_it_was_the_budget() {
 
 #[test]
 fn a_script_a_host_command_evaluates_is_charged_to_the_invocations_budget() {
+    crate::install_surfaces();
     let mut engine = engine();
     engine
         .set_budget(Budget::of_commands(5))
@@ -550,6 +561,7 @@ fn a_script_a_host_command_evaluates_is_charged_to_the_invocations_budget() {
 
 #[test]
 fn a_host_command_provides_a_package_a_later_require_finds() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(
         run(&mut engine, "package require pkgq"),
@@ -580,6 +592,7 @@ fn a_host_command_provides_a_package_a_later_require_finds() {
 
 #[test]
 fn a_host_command_names_a_loaded_library_info_loaded_lists() {
+    crate::install_surfaces();
     let mut engine = engine();
     assert_eq!(run(&mut engine, "info loaded"), Ok(String::new()));
     assert_eq!(
@@ -597,6 +610,7 @@ fn a_host_command_names_a_loaded_library_info_loaded_lists() {
 
 #[test]
 fn an_embedder_reads_writes_and_evaluates_through_the_engine_itself() {
+    crate::install_surfaces();
     let mut engine = engine();
     engine
         .set_variable("g", Value::Int(5))
@@ -667,6 +681,7 @@ fn an_embedder_reads_writes_and_evaluates_through_the_engine_itself() {
 
 #[test]
 fn an_embedder_provides_a_package_and_a_library_through_the_engine_itself() {
+    crate::install_surfaces();
     let mut engine = engine();
     engine.provide_package("e", "3.1").expect("provides");
     assert_eq!(

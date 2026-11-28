@@ -33,6 +33,7 @@ rust/tcl-diagram
 rust/tcl-dialect
 rust/tcl-engine-api
 rust/tcl-engine-tclvm
+rust/tcl-engine-tclvm-it
 rust/tcl-engine-wasm
 rust/tcl-explorer
 rust/tcl-expr

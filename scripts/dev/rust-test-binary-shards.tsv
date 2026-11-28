@@ -32,7 +32,8 @@
 2	tcl-bigip-io	lib	tcl-bigip-io	tcl_bigip_io
 2	tcl-bigip-query	lib	tcl-bigip-query	tcl_bigip_query
 2	tcl-bigip::integration	test	tcl-bigip	integration
-2	tcl-engine-tclvm::doors	test	tcl-engine-tclvm	doors
+2	tcl-engine-tclvm-it	lib	tcl-engine-tclvm-it	tcl_engine_tclvm_it
+2	tcl-engine-tclvm-it::it_2	test	tcl-engine-tclvm-it	it_2
 2	tcl-lexer::it_2	test	tcl-lexer	it_2
 2	tcl-lsp-core	lib	tcl-lsp-core	tcl_lsp_core
 2	tcl-lsp-db-it	lib	tcl-lsp-db-it	tcl_lsp_db_it
