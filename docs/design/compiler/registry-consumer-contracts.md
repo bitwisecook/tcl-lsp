@@ -850,7 +850,7 @@ loops, and `dict` and `array`'s iterating subcommands — is rendered to
 `derivations_are_recorded_as_derivations` in the same file keeps the rule
 that a derivation is an explicit opt-in and never an implicit consequence
 of declaring the data it reads;
-`rust/tcl-compiler/tests/it_5/cfg.rs` and `analyser.rs` keep their `if` / `try`
+`rust/tcl-compiler-it/tests/it_5/cfg.rs` and `analyser.rs` keep their `if` / `try`
 / loop cases as the behavioural parity gate; and
 `rust/tcl-spectcl-it/tests/it_5/registry_sweep.rs` holds a `Group` row's `layout`
 to a real `repeated_args` entry
@@ -1077,7 +1077,7 @@ list of class references; a `Retraction` row carries a `retraction`; and a
 `no_member_effect_names_a_family` is the negative.
 `rust/tcl-spectcl-it/tests/it_4/analyser_hooks.rs`'s
 `analyser_hook_stamps_are_disjoint_from_definer_families` keeps hook stamps
-and definer families apart. `rust/tcl-compiler/tests/it_4/mro_lattice_adversarial.rs`
+and definer families apart. `rust/tcl-compiler-it/tests/it_4/mro_lattice_adversarial.rs`
 is the hierarchy gate, and `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs`
 holds that a member spelling only a workspace pack declares reaches
 document symbols, hover and go-to-definition through its row's effect, with
@@ -2495,7 +2495,7 @@ flowchart LR
 - `rust/tcl-spec-studio-it/tests/it_4/option_row_editing.rs` — the option-row form with `-effect` and `option_effect_family`
 - `rust/tcl-spectcl-it/tests/it_5/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`, and `the_extension_default_is_at_the_top_of_every_axis`
 - `rust/tcl-registry/tests/it_5/tcl91_dialect.rs` — the availability of `subst`'s positive option family
-- `rust/tcl-compiler/tests/it_4/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
+- `rust/tcl-compiler-it/tests/it_4/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates
 - `rust/tcl-lsp-server/tests/preview_tickets_e2e.rs` — the definer spelling that reaches every provider with no consumer edit
 - `rust/tcl-cshim-it/tests/it_5/pkga_e2e.rs` — the byte-for-byte expectations captured against Tcl 9.0.4's own `tcl.h`, the shared conformance vectors for both C legs, `the_loaded_report_bridges_to_the_default_fact`, the shim's report declared at the extension default, and `load_through_the_host_bridge_defines_the_commands` with `the_same_vectors_run_through_the_host_load_bridge`, the host's `load`
 - `rust/tcl-spectcl-it/tests/it_2/i6_security_floor.rs` — the floor and its take-shipped extension

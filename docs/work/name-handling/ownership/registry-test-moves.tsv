@@ -13,17 +13,6 @@ tcl-spectcl	lib	106	27 direct, 79 via the poisoned cache
 tcl-codegen	lib	564	404 direct, 160 via the poisoned cache
 tcl-vm	lib	712	1 direct, 711 via the poisoned cache
 tcl-compiler	lib	8620	2722 direct, 5898 via the poisoned cache
-tcl-compiler	command_definitions	1	1 direct, 0 via the poisoned cache
-tcl-compiler	command_resolution_conformance	1	1 direct, 0 via the poisoned cache
-tcl-compiler	differential_incremental	2	1 direct, 1 via the poisoned cache
-tcl-compiler	it_2	307	5 direct, 302 via the poisoned cache
-tcl-compiler	it_3	743	96 direct, 647 via the poisoned cache
-tcl-compiler	it_4	738	2 direct, 736 via the poisoned cache
-tcl-compiler	it_5	574	26 direct, 548 via the poisoned cache
-tcl-compiler	native_arithmetic_conformance	1	1 direct, 0 via the poisoned cache
-tcl-compiler	per_item_corpus	1	1 direct, 0 via the poisoned cache
-tcl-compiler	resolution_rewrite_oracles	2	1 direct, 1 via the poisoned cache
-tcl-compiler	semantic_identity_answer	3	3 direct, 0 via the poisoned cache
 tcl-registry	lib	875	589 direct, 286 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
 tcl-registry	dialect_oracle	3	3 direct, 0 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
 tcl-registry	it_2	15	9 direct, 6 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264

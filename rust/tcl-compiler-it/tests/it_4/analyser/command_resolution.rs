@@ -24,6 +24,7 @@ mod namespace_analysis {
 
     #[test]
     fn namespace_eval_creates_namespace_scope() {
+        crate::install_surfaces();
         let src = "namespace eval myns {\n    proc helper {} { return 1 }\n}\n";
         let r = Analyser::new().analyse(src, D);
         assert_eq!(r.global_scope.children.len(), 1);
@@ -35,6 +36,7 @@ mod namespace_analysis {
 
     #[test]
     fn namespace_qualified_proc_in_all_procs() {
+        crate::install_surfaces();
         let src = "namespace eval math {\n    proc add {a b} { return [+ $a $b] }\n}\n";
         let r = Analyser::new().analyse(src, D);
         assert!(r.all_procs.contains_key("::math::add"));
@@ -47,6 +49,7 @@ mod package_require {
 
     #[test]
     fn simple_require_no_version() {
+        crate::install_surfaces();
         let r = Analyser::new().analyse("package require http", D);
         assert_eq!(r.package_requires.len(), 1);
         assert_eq!(r.package_requires[0].name, "http");
@@ -55,6 +58,7 @@ mod package_require {
 
     #[test]
     fn require_with_version_and_exact() {
+        crate::install_surfaces();
         for src in [
             "package require http 2.9",
             "package require -exact http 2.9",
@@ -68,6 +72,7 @@ mod package_require {
 
     #[test]
     fn multiple_requires() {
+        crate::install_surfaces();
         let r = Analyser::new().analyse("package require http\npackage require tls", D);
         assert_eq!(r.package_requires.len(), 2);
         let names: std::collections::HashSet<_> =
@@ -82,6 +87,7 @@ mod package_require {
 
     #[test]
     fn provide_and_unrelated_not_recorded() {
+        crate::install_surfaces();
         assert_eq!(
             Analyser::new()
                 .analyse("package provide mylib 1.0", D)
@@ -103,6 +109,7 @@ mod dict_qualified_specs {
 
     #[test]
     fn qualified_dict_for_binds_loop_vars_and_walks_body() {
+        crate::install_surfaces();
         // The standalone `::tcl::dict::for` must carry `dict for`'s arg-roles
         // (`LoopVarList` + `Body`) and its `DictFor` analyser hook, so its
         // body is analysed and `k`/`v` are bound — `CommandSpec::DEFAULT`
@@ -122,6 +129,7 @@ mod dict_qualified_specs {
 
     #[test]
     fn qualified_dict_set_body_walks_a_nested_dict_for() {
+        crate::install_surfaces();
         // A `::tcl::dict::for` nested inside another command's body still
         // carries its analysis contract, so the inner body's own call is
         // seen — a stronger check than a top-level call that the generic
@@ -166,6 +174,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tn_valid_body_no_w123() {
+        crate::install_surfaces();
         // A representative shape: line codes + operations.
         let src = "::report::defstyle simpletable {} {\n\
                    \x20 top set [split \"x\"]\n\
@@ -187,6 +196,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tn_nested_substitution_scoped_command_resolves() {
+        crate::install_surfaces();
         // `[columns]` nested inside a `set` value is still a scoped command.
         let src = "::report::defstyle st {} {\n\
                    \x20 top set [string repeat \"= \" [columns]]\n\
@@ -200,6 +210,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tn_sibling_style_resolves() {
+        crate::install_surfaces();
         // A later style body may invoke a previously-defined style by name.
         let src = "::report::defstyle simpletable {} {\n\
                    \x20 top enable\n\
@@ -217,6 +228,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tn_config_methods_valid_arity() {
+        crate::install_surfaces();
         let src = "::report::defstyle st {} {\n\
                    \x20 size 0 10\n\
                    \x20 size 1 dyn\n\
@@ -238,6 +250,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tp_typo_command_flagged() {
+        crate::install_surfaces();
         // `toop` / `dataa` are not scoped commands → still W123.
         // tcllib report is loaded: without it `::report::defstyle` raises
         // `invalid command name` and the style body never runs (tclsh 8.6.18).
@@ -256,6 +269,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tp_unknown_operation_flagged_w001() {
+        crate::install_surfaces();
         let src = "::report::defstyle st {} {\n  top bogus\n}\n";
         assert!(
             fires(src, D, "W001"),
@@ -266,6 +280,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tp_bare_ensemble_requires_operation_e001() {
+        crate::install_surfaces();
         // tcllib report is loaded: without it `::report::defstyle` raises
         // `invalid command name` and the style body never runs (tclsh 8.6.18).
         let src = "package require report\n::report::defstyle st {} {\n  top\n}\n";
@@ -278,6 +293,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tp_operation_too_few_args_e002() {
+        crate::install_surfaces();
         // `top set` needs the template value.
         // tcllib report is loaded: without it `::report::defstyle` raises
         // `invalid command name` and the style body never runs (tclsh 8.6.18).
@@ -291,6 +307,7 @@ mod report_scoped_commands {
 
     #[test]
     fn tp_plain_command_too_many_args_e003() {
+        crate::install_surfaces();
         // `columns` takes no arguments.
         // tcllib report is loaded: without it `::report::defstyle` raises
         // `invalid command name` and the style body never runs (tclsh 8.6.18).
@@ -306,6 +323,7 @@ mod report_scoped_commands {
 
     #[test]
     fn fp_core_commands_still_checked_in_body() {
+        crate::install_surfaces();
         // Core commands inside the body keep their normal arity checks — a
         // scoped env must not swallow them.  `set` with one arg is fine; a
         // genuinely unknown core-looking head is still W123.
@@ -324,6 +342,7 @@ mod report_scoped_commands {
 
     #[test]
     fn fn_scoped_command_unknown_outside_body() {
+        crate::install_surfaces();
         // `top` / `columns` at top level are not real commands.
         let src = "top set x\ncolumns\n";
         let w = w123(src);
@@ -341,6 +360,7 @@ mod report_scoped_commands {
 
     #[test]
     fn report_namespace_commands_known() {
+        crate::install_surfaces();
         // The dedicated specs make the introspection commands resolvable
         // (only W120 missing-require remains, which is correct).
         let src = "::report::styles\n::report::rmstyle foo\n::report::stylebody foo\n\
@@ -354,6 +374,7 @@ mod report_scoped_commands {
 
     #[test]
     fn report_object_methods_resolve() {
+        crate::install_surfaces();
         // `report::report` binds `r` as an object command; `r <method>` resolves
         // through the registry object class — no W123 on `r`.
         let src = "package require report\n::report::report r 3\nr data set x\nr printmatrix m\n";
@@ -418,6 +439,7 @@ mod pack_declared_transitions {
     /// alias, leaves no W306; an undeclared procedure of the same shape does.
     #[test]
     fn a_pack_declared_regex_quoting_helper_settles_the_pattern_word() {
+        crate::install_surfaces();
         let codes = |src: &str| -> Vec<String> {
             analyser_with_pack(QUOTING_PACK)
                 .analyse(src, D)
@@ -447,6 +469,7 @@ mod pack_declared_transitions {
     /// frame, so `c` binds exactly as the `upvar` handler binds it.
     #[test]
     fn a_pack_declared_scope_alias_binds_its_local() {
+        crate::install_surfaces();
         let bound = analyser_with_pack(LINKER_PACK).analyse(
             "proc p {} {\n    scoped_link #0 counter c\n    return $c\n}\n",
             D,
@@ -492,6 +515,7 @@ mod pack_declared_transitions {
     /// optional second slot left unfilled binds nothing more.
     #[test]
     fn a_clause_with_two_variable_lists_binds_both() {
+        crate::install_surfaces();
         let both = analyser_with_pack(TWO_LISTS_PACK).analyse("cmd {} a b\n", D);
         for name in ["a", "b"] {
             assert!(
@@ -523,6 +547,7 @@ mod pack_declared_transitions {
     /// is not. Negative: the generation without the pack knows neither.
     #[test]
     fn a_pack_declared_special_variable_is_readable_at_startup() {
+        crate::install_surfaces();
         let packs = tcl_spectcl::pack::load_in_memory(vec![(
             tcl_spectcl::PackFile {
                 tier: tcl_spectcl::Tier::Workspace,

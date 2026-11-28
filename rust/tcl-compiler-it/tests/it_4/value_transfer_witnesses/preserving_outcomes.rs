@@ -101,6 +101,7 @@ fn dead_store_findings(
 /// was.
 #[test]
 fn a_store_a_declared_outcome_may_preserve_is_live() {
+    crate::install_surfaces();
     let shipped = tcl_spectcl::bundled::load_from(
         &std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs"),
     );
@@ -157,6 +158,7 @@ fn a_store_a_declared_outcome_may_preserve_is_live() {
 /// ignored` is `8080` under tclsh 8.4 to 9.1 before and after `tcl opt`.
 #[test]
 fn a_materialised_child_carries_its_factory_call_span() {
+    crate::install_surfaces();
     use tcl_compiler::analyser::Analyser;
     let source = "proc Configure {name default description} {\n    \
                   proc $name {x} [subst -nocommands {return $default}]\n}\n\
@@ -206,6 +208,7 @@ fn a_materialised_child_carries_its_factory_call_span() {
 /// tclsh 8.4 to 9.1, where dropping `set x 1` as unused made them raise.
 #[test]
 fn a_computed_template_that_runs_commands_keeps_the_stores_it_reads() {
+    crate::install_surfaces();
     let source = "proc f {t} {\n    set x 1\n    return [subst -novariables $t]\n}\n\
                   puts [f {[set x]}]\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
@@ -227,6 +230,7 @@ fn a_computed_template_that_runs_commands_keeps_the_stores_it_reads() {
 /// `tcl opt`-rewritten program print `before` on every release.
 #[test]
 fn the_no_match_preserve_witness() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    set a before\n    regexp {(x)(y)} zz a b\n    puts $a\n}\np\n";
     for dialect in TCL_CORE_DIALECTS {
         assert_eq!(
@@ -249,6 +253,7 @@ fn the_no_match_preserve_witness() {
 /// `Overdefined` for a reason unrelated to what this witness proves.
 #[test]
 fn the_partial_scan_witness() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    set a before\n    set b before\n    \
                   scan \"12\" \"%d %d\" a b\n    puts \"$a $b\"\n}\np\n";
     for dialect in TCL_CORE_DIALECTS {
@@ -274,6 +279,7 @@ fn the_partial_scan_witness() {
 /// read of an `n` the call binds.
 #[test]
 fn the_percent_n_count_witness() {
+    crate::install_surfaces();
     use tcl_compiler::analyser::Analyser;
     let kept = "proc p {} {\n    set n 5\n    scan \"\" %n%d n a\n    puts $n\n}\np\n";
     let bound = "proc q {} {\n    scan \"\" %n%d n a\n    puts $n\n}\nq\n";
@@ -310,6 +316,7 @@ fn the_percent_n_count_witness() {
 /// raises on both releases, and the route declines it.
 #[test]
 fn const_writes_only_an_absent_place() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    const c 5\n    puts $c\n    const c 7\n    puts $c\n}\np\n";
     let raises = "proc q {} {\n    set x 1\n    const x 2\n}\nq\n";
     for dialect in ["tcl9.0", "tcl9.1"] {
@@ -365,6 +372,7 @@ fn const_writes_only_an_absent_place() {
 /// `x` again, and `x` ends the call as `b`.
 #[test]
 fn the_repeated_target_witness() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    regexp {(a)(b)} ab -> x x\n    puts $x\n}\np\n";
     for dialect in TCL_CORE_DIALECTS {
         assert_eq!(

@@ -110,6 +110,7 @@ fn tenant_label_registry() -> tcl_registry::CommandRegistry {
 /// `tcl-spec-hooks`' own witnesses.
 #[test]
 pub(super) fn a_declared_implementation_folds_through_the_driver() {
+    crate::install_surfaces();
     use tcl_registry::pack_hooks;
 
     let registry = tenant_label_registry();
@@ -213,6 +214,7 @@ fn tenant_workspace() -> tcl_spectcl::PackSet {
 /// keeps the command that builds it and prints what every release prints.
 #[test]
 fn program_two_folds_and_is_a_byte_array() {
+    crate::install_surfaces();
     use tcl_compiler::shimmer::{find_byte_array_warnings_for_cu, find_shimmer_warnings_for_cu};
     use tcl_compiler::value_transfer::FoldedType;
     use tcl_registry::TclType;
@@ -262,6 +264,7 @@ fn program_two_folds_and_is_a_byte_array() {
 /// result.
 #[test]
 fn folded_types_state_what_each_route_constructed() {
+    crate::install_surfaces();
     use tcl_compiler::value_transfer::FoldedType;
     use tcl_registry::TclType;
     use tcl_registry::value_transfer::RepresentationEvidence;
@@ -366,6 +369,7 @@ fn folded_types_state_what_each_route_constructed() {
 ///   what the optimised program prints under every `tclsh` on `PATH`.
 #[test]
 fn the_completion_test_needs_no_consumer_edit() {
+    crate::install_surfaces();
     let _published = PUBLISHED_PACKS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -565,6 +569,7 @@ const ACC_PACK: &str = "speclib acc 2.2 {
 /// call, so the incoming target is not exact and `acc::put` declines.
 #[test]
 fn a_pack_write_through_an_incoming_target_reaches_the_driver() {
+    crate::install_surfaces();
     let _published = PUBLISHED_PACKS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -616,6 +621,7 @@ fn a_pack_write_through_an_incoming_target_reaches_the_driver() {
 /// such variable`.
 #[test]
 fn a_no_match_keeps_the_store_it_preserves() {
+    crate::install_surfaces();
     use tcl_compiler::analyser::Analyser;
     let programs = [
         (
@@ -669,6 +675,7 @@ fn a_no_match_keeps_the_store_it_preserves() {
 /// makes the target a conditional write.
 #[test]
 fn a_pack_declared_preserve_holds_the_prior_version() {
+    crate::install_surfaces();
     const KEEP_PACK: &str = "speclib keep 2.2 {
     command keep::miss {
         arity 2
@@ -718,6 +725,7 @@ fn a_pack_declared_preserve_holds_the_prior_version() {
 /// words complete still folds.
 #[test]
 fn a_raising_argument_ends_the_invocation_before_its_implementation_runs() {
+    crate::install_surfaces();
     const CONSTANT_PACK: &str = "speclib review 2.2 {
     command review::constant {
         arity 1
@@ -763,6 +771,7 @@ fn a_raising_argument_ends_the_invocation_before_its_implementation_runs() {
 /// declines the same way. A call the arity accepts still folds.
 #[test]
 fn a_declared_route_refuses_a_call_outside_its_arity() {
+    crate::install_surfaces();
     const EXPLICIT: &str = "speclib review 2.2 {
     command review::label {
         arity 1
@@ -841,6 +850,7 @@ fn a_declared_route_refuses_a_call_outside_its_arity() {
 /// still folds.
 #[test]
 fn a_declared_binding_the_module_rebinds_declines_the_call() {
+    crate::install_surfaces();
     const PACK: &str = "speclib review 2.2 {
     command review::length {
         arity 1
@@ -881,6 +891,7 @@ fn a_declared_binding_the_module_rebinds_declines_the_call() {
 /// its arguments after the subcommand word: `review pair a b` is `a b` too.
 #[test]
 fn a_pack_direct_route_runs_the_evaluator_it_names() {
+    crate::install_surfaces();
     use tcl_compiler::analyser::Analyser;
     const DIRECT_PACK: &str = "speclib review 2.2 {
     command review::list {
@@ -935,6 +946,7 @@ fn a_pack_direct_route_runs_the_evaluator_it_names() {
 /// package is required and nothing shadows it.
 #[test]
 fn a_shadowing_procedure_stops_a_package_route() {
+    crate::install_surfaces();
     let shadows = [
         (
             "namespace eval base32 {}\nproc base32::encode {x} {return shadowed}\nputs [base32::encode abc]\n",
@@ -982,6 +994,7 @@ fn a_shadowing_procedure_stops_a_package_route() {
 /// to 9.1.0 print the same before and after `tcl opt`.
 #[test]
 fn a_declined_route_leaves_its_word_as_written() {
+    crate::install_surfaces();
     for (source, printed, kept) in [
         ("puts [string match -nocase {a]€} {€a}]\n", "0\n", true),
         ("puts [string match -nocase {ba]😀[€} {€a}]\n", "0\n", true),

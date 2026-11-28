@@ -3164,7 +3164,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — `info_exists_*`, `emit_cfg_ssa_diagnostics_w210_*`, `emit_cfg_ssa_diagnostics_w213_*`, `w102_*`: the existence, read-before-set, and template-word answers
 - `rust/tcl-compiler/src/sccp.rs` — `existence_fold_abstains_*`, `upframe_body_models_*`, `sccp_folds_post_loop_branch_via_static_summary`
 - `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: the bounded `for` simulation's answers over the enumeration
-- `rust/tcl-compiler/tests/it_2/value_transfer_witnesses.rs` — `the_iteration_cap_publishes_nothing`, `the_mirror_pairs_decline_as_correlated`, `a_loop_condition_reads_the_math_binding`, `the_argument_sensitive_rerun_runs_the_callees_loop`, `an_enumerated_loop_bounds_its_counter_after_it`
+- `rust/tcl-compiler-it/tests/it_2/value_transfer_witnesses.rs` — `the_iteration_cap_publishes_nothing`, `the_mirror_pairs_decline_as_correlated`, `a_loop_condition_reads_the_math_binding`, `the_argument_sensitive_rerun_runs_the_callees_loop`, `an_enumerated_loop_bounds_its_counter_after_it`
 - `rust/tcl-expr/src/expr/eval.rs` — `short_circuit_logical`: the walker's ordering the evaluation state relies on
 - `rust/tcl-compiler/src/tcl_expr_eval.rs` — `command_substitution_evaluates_through_the_nested_service`: a nested command's answer under each nested policy
 - `rust/tcl-compiler/src/cfg_builder/cfg_lower.rs` — `try_finally_creates_finally_block`, `try_with_handler`: the faithful-exceptions shape

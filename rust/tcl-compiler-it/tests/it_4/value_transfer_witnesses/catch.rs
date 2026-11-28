@@ -26,6 +26,7 @@ use super::*;
 /// deleted `set g 5` and the read raised `can't read "g"`.
 #[test]
 fn a_store_a_catch_body_may_leave_untouched_is_not_dead() {
+    crate::install_surfaces();
     let top = "set g 5\ncatch { if {[expr {[clock seconds] < 0}]} { set g 0 } }\nputs $g\n";
     let in_proc = "proc p {} {\n set g 5\n catch { if {[expr {[clock seconds] < 0}]} { set g 0 } }\n puts $g\n}\np\n";
     let with_result =
@@ -128,6 +129,7 @@ const CATCH_BODY_PROGRAMS: &[BodyProgram] = &[
 /// from 8.6.
 #[test]
 fn a_nested_catch_body_is_the_statements_effect() {
+    crate::install_surfaces();
     for &(source, expected, condition) in CATCH_BODY_PROGRAMS {
         prints_under_every_release(source, expected);
         let truth = condition.map(|(truth, _)| truth);
@@ -202,6 +204,7 @@ const CATCH_RESULTS: &[(&str, &str)] = &[
 /// reads a variable never set — and the variable is still bound.
 #[test]
 fn a_closed_catch_script_gives_its_result_variable_what_it_returned() {
+    crate::install_surfaces();
     for &(script, expected) in CATCH_RESULTS {
         let source = format!("catch {{{script}}} m\nputs \"<$m>\"\n");
         for dialect in DIALECTS {
@@ -261,6 +264,7 @@ fn a_closed_catch_script_gives_its_result_variable_what_it_returned() {
 /// the handler's `0`.
 #[test]
 fn an_error_a_catch_script_raises_is_not_the_statements_own() {
+    crate::install_surfaces();
     // The script's `return` keeps the `catch` one opaque call, and without it
     // the script is lowered into the procedure's blocks.
     for script in ["set a [error boom]; return x", "set a [error boom]"] {
@@ -296,6 +300,7 @@ fn an_error_a_catch_script_raises_is_not_the_statements_own() {
 /// no W210 where they are read.
 #[test]
 fn an_unproven_result_and_the_options_dictionary_are_bound_and_typed() {
+    crate::install_surfaces();
     use tcl_compiler::value_transfer::FoldedType;
     use tcl_registry::TclType;
     use tcl_registry::value_transfer::RepresentationEvidence;
@@ -333,6 +338,7 @@ fn an_unproven_result_and_the_options_dictionary_are_bound_and_typed() {
 /// `-errorstack` are the interpreter's own text.
 #[test]
 fn the_options_dictionary_starts_with_the_code_and_level_the_route_states() {
+    crate::install_surfaces();
     let rows = [
         ("set v 1", "-code 0 -level 0"),
         ("return 5", "-code 0 -level 1"),
@@ -480,6 +486,7 @@ const UNBRACED_SCRIPT_PROGRAMS: &[(&str, &str, &str)] = &[
 /// its condition as tclsh does not, and the store a script reads stays.
 #[test]
 fn a_quoted_or_computed_script_is_the_statements_effect() {
+    crate::install_surfaces();
     for &(source, expected, first) in UNBRACED_SCRIPT_PROGRAMS {
         prints_under_releases_from(source, expected, first);
         let dialects: &[&str] = if first == "8.4" {
@@ -624,6 +631,7 @@ fn the_catch_row_that_splits_on_an_absent_cell() {
 /// 5 tclsh prints.
 #[test]
 fn the_catch_code_table() {
+    crate::install_surfaces();
     the_catch_rows_every_release_reads_alike();
     the_catch_row_that_splits_on_an_absent_cell();
     let callee = "proc q {} {return -code 5 custom}\n\
@@ -646,6 +654,7 @@ fn the_catch_code_table() {
 /// 9.1 print `1|a`.
 #[test]
 fn a_catch_script_that_is_not_brace_quoted_text_is_not_the_script_it_runs() {
+    crate::install_surfaces();
     let quoted = "proc p {} {\n    set e {a b}\n    set c [catch \"error $e\" m]\n    \
                   puts \"$c|$m\"\n}\np\n";
     for dialect in RELEASE_DIALECTS {
@@ -694,6 +703,7 @@ fn flattened_catches(unit: &CompilationUnit, proc: &str) -> usize {
 /// 9.1 print the same before and after.
 #[test]
 fn a_flattened_catch_gives_its_result_variable_what_its_script_returned() {
+    crate::install_surfaces();
     for &(script, expected) in FLATTENED_CATCH_RESULTS {
         let source =
             format!("proc p {{}} {{\n    catch {{{script}}} m\n    puts \"<$m>\"\n}}\np\n");
@@ -729,6 +739,7 @@ fn a_flattened_catch_gives_its_result_variable_what_its_script_returned() {
 /// optimiser.
 #[test]
 fn a_flattened_catch_runs_its_script_over_the_state_before_it() {
+    crate::install_surfaces();
     let int = |n: i64| Some(LatticeValue::Const(ConstValue::int(n)));
     let programs: [(&str, &str, i64); 4] = [
         (
@@ -774,6 +785,7 @@ fn a_flattened_catch_runs_its_script_over_the_state_before_it() {
 /// original prints, before and after the optimiser.
 #[test]
 fn a_flattened_catch_the_solver_cannot_prove_stays_unknown() {
+    crate::install_surfaces();
     let programs = [
         (
             "proc p {} {\n    catch {puts $undefined} m\n    puts \"<$m>\"\n}\np\n",
@@ -820,6 +832,7 @@ fn a_flattened_catch_the_solver_cannot_prove_stays_unknown() {
 /// that stores to the same name earlier, which the pass leaves alone.
 #[test]
 fn a_store_the_flattened_catch_returns_is_not_dead() {
+    crate::install_surfaces();
     // The statement stays whatever a word of it is folded to, so each program
     // names the store by what leads it.
     let programs = [
@@ -891,6 +904,7 @@ fn a_store_the_flattened_catch_returns_is_not_dead() {
 /// decides the kind a later one needs.
 #[test]
 fn a_catch_body_store_is_run_only_where_its_place_is_proved_to_take_it() {
+    crate::install_surfaces();
     let value_form = "proc p {n} {\n    if {$n} {array set y {a 1}}\n    set c [catch {set y 1}]\n    if {$c == 0} {return zero}\n    return \"c=$c\"\n}\nputs [p 1]\nputs [p 0]\n";
     let flattened = "proc p {n} {\n    if {$n} {array set y {a 1}}\n    catch {set y 1} m\n    if {$m eq \"1\"} {return one}\n    return other\n}\nputs [p 1]\nputs [p 0]\n";
     let top_level = "set a old\narray set b {k keep}\ncatch {lassign {new second} a b} m2\nif {$m2 eq \"\"} {puts empty} else {puts error}\nputs $a\n";
@@ -1008,6 +1022,7 @@ fn a_catch_body_store_is_run_only_where_its_place_is_proved_to_take_it() {
 /// raises on `p 0`.
 #[test]
 fn an_opaque_catch_reads_its_own_writes_as_its_own() {
+    crate::install_surfaces();
     for (source, printed) in [
         ("catch {set i 0; puts $i}\n", "0\n"),
         ("catch {foreach x {1 2} {puts $x}}\n", "1\n2\n"),

@@ -26,6 +26,7 @@ use super::*;
 /// the value after the switch printed `a` and `1`. `-nocase` is from 8.5.
 #[test]
 fn a_write_an_opaque_switch_arm_makes_is_never_folded_away() {
+    crate::install_surfaces();
     for (arm, first) in [
         ("-glob -- $s { q* { set go 0 } }", "8.4"),
         ("-nocase -- $s { Q1 { set go 0 } }", "8.5"),
@@ -55,6 +56,7 @@ fn a_write_an_opaque_switch_arm_makes_is_never_folded_away() {
 /// its value before and after the optimiser.
 #[test]
 fn a_write_a_command_an_opaque_switch_arm_runs_is_never_folded_away() {
+    crate::install_surfaces();
     for (arm, first, in_proc) in [
         ("zero go", "8.4", "b\n0\n"),
         ("namespace eval :: {set go 0}", "8.4", "a\n1\n"),
@@ -79,6 +81,7 @@ fn a_write_a_command_an_opaque_switch_arm_runs_is_never_folded_away() {
 /// release, before and after the optimiser.
 #[test]
 fn a_write_a_callback_script_makes_is_never_folded_away() {
+    crate::install_surfaces();
     for source in [
         "set done 0\nafter 10 { set done 1 }\nafter 50\nupdate\nputs $done\n",
         "proc tick {} { set ::done 1 }\nset done 0\nafter 10 tick\nafter 50\nupdate\nputs $done\n",
@@ -102,6 +105,7 @@ fn a_write_a_callback_script_makes_is_never_folded_away() {
 /// the call printed `other` and `5`.
 #[test]
 fn a_write_a_command_the_module_cannot_see_makes_is_never_folded_away() {
+    crate::install_surfaces();
     let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
                   set fh [open $f w]\nputs $fh {proc foo {} {set ::g 6}}\nclose $fh\n\
                   source $f\nfile delete $f\n";
@@ -120,6 +124,7 @@ fn a_write_a_command_the_module_cannot_see_makes_is_never_folded_away() {
 /// across the `source` printed `other` and `5`.
 #[test]
 fn a_write_a_sourced_file_makes_is_never_folded_away() {
+    crate::install_surfaces();
     let write_file = "set f [file join [file dirname [info script]] vt-sourced-[pid].tcl]\n\
                       set fh [open $f w]\nputs $fh {set g 6}\nclose $fh\n";
     let top = format!(
@@ -141,6 +146,7 @@ fn a_write_a_sourced_file_makes_is_never_folded_away() {
 /// loop the call ends never stopped.
 #[test]
 fn a_write_an_autoloaded_command_makes_to_a_procedure_local_is_never_folded_away() {
+    crate::install_surfaces();
     let define = "set auto_index(missing) {proc missing {} {upvar 1 g g; set g 6}}\n";
     for body in [
         " set g 5\n missing\n if {$g == 6} {puts six} else {puts other}\n puts $g\n",
@@ -162,6 +168,7 @@ fn a_write_an_autoloaded_command_makes_to_a_procedure_local_is_never_folded_away
 /// `other` and `5` and a rewrite followed.
 #[test]
 fn a_write_a_catch_body_or_a_computed_head_runs_is_never_folded_away() {
+    crate::install_surfaces();
     let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
                   set fh [open $f w]\nputs $fh {proc foo {} {set ::g 6}}\nclose $fh\n\
                   source $f\nfile delete $f\n";
@@ -201,6 +208,7 @@ fn a_write_a_catch_body_or_a_computed_head_runs_is_never_folded_away() {
 /// `subst` of text that runs nothing unseen, leave the condition decided.
 #[test]
 fn a_substitution_runs_the_unseen_code_in_every_body_it_holds() {
+    crate::install_surfaces();
     let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
                   set fh [open $f w]\nputs $fh {proc foo {} {set ::g 6}}\nclose $fh\n\
                   source $f\nfile delete $f\n";
@@ -252,6 +260,7 @@ fn a_substitution_runs_the_unseen_code_in_every_body_it_holds() {
 /// read or of one they do not.
 #[test]
 fn a_call_the_module_cannot_see_reads_its_words_first_and_may_read_and_write_after() {
+    crate::install_surfaces();
     let define = "set f [file join [file dirname [info script]] vt-unseen-[pid].tcl]\n\
                   set fh [open $f w]\nputs $fh {proc foo {n} {global g; puts \"n=$n g=$g\"; set ::g 6; set ::m 4}}\n\
                   close $fh\nsource $f\nfile delete $f\n";
@@ -286,6 +295,7 @@ fn a_call_the_module_cannot_see_reads_its_words_first_and_may_read_and_write_aft
 /// or stores a script that writes another name, leaves the value alone.
 #[test]
 fn a_write_a_callback_the_scan_could_not_read_makes_is_never_folded_away() {
+    crate::install_surfaces();
     let define = "set f [file join [file dirname [info script]] vt-callback-[pid].tcl]\n\
                   set fh [open $f w]\nputs $fh {proc finish {} {set ::done 1}}\nclose $fh\n\
                   source $f\nfile delete $f\n";
@@ -327,6 +337,7 @@ fn a_write_a_callback_the_scan_could_not_read_makes_is_never_folded_away() {
 /// a script that may write any variable, and the branch was left undecided.
 #[test]
 fn an_alias_to_a_command_that_writes_nothing_leaves_its_branch_decided() {
+    crate::install_surfaces();
     for target in ["string length", "::string length"] {
         let source = format!(
             "interp alias {{}} safe {{}} {target}\nset x 5\nsafe {{set x 6}}\n\
@@ -374,6 +385,7 @@ fn stubbed_e5(frame: &str) -> String {
 /// caller's `g` through `upvar 1` — and prints what the claims allow.
 #[test]
 fn a_stub_that_states_its_frame_effect_is_a_named_head() {
+    crate::install_surfaces();
     let own = "proc db_query {sql} {return 1}\nproc db_eval {sql script} {uplevel 1 $script}\n";
     let caller = "proc db_query {sql} {upvar 1 g g; set g 6}\nproc db_eval {sql script} {uplevel 1 $script}\n";
     for (frame, definitions, claims, printed) in [
@@ -484,6 +496,7 @@ fn a_stub_that_states_its_frame_effect_is_a_named_head() {
 /// rewrite had printed `zero` and `0`.
 #[test]
 fn a_lambda_a_callback_applies_writes_the_globals_its_body_writes() {
+    crate::install_surfaces();
     for (lambda, words) in [
         ("{} {global done; set done 1}", ""),
         ("{} {set ::done 1}", ""),

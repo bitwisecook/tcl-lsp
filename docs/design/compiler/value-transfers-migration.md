@@ -696,7 +696,7 @@ contract's budget section.
 - `rust/tcl-compiler/src/optimiser/branch_folding.rs` — `switch_dispatch_branches_are_skipped`
 - `rust/tcl-compiler/src/sccp.rs` — `sccp_folds_post_loop_branch_via_static_summary` and the `existence_fold_abstains_*` tests, the existence and enumeration baselines
 - `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — the `info_exists_*`, `emit_cfg_ssa_diagnostics_w210_*`, `w213_*`, and `w102_*` tests
-- `rust/tcl-compiler/tests/it_2/value_transfer_witnesses.rs` — `program_four_yields_o112_and_i231_for_every_form`, `the_flattened_form_yields_o107`, `a_selection_fact_folds_no_condition_beside_it` and `a_decided_loop_header_gives_w240_or_w241`
+- `rust/tcl-compiler-it/tests/it_2/value_transfer_witnesses.rs` — `program_four_yields_o112_and_i231_for_every_form`, `the_flattened_form_yields_o107`, `a_selection_fact_folds_no_condition_beside_it` and `a_decided_loop_header_gives_w240_or_w241`
 - `rust/tcl-cli/tests/value_transfers_cli.rs` — `program_four_reaches_diag_and_opt_in_every_form`, `explore_sccp_prints_the_selection` and `diag_reads_the_decided_loop_header_and_the_dead_respond`
 - `rust/tcl-registry/tests/it_4/differential_fold.rs` — the oracle; `rust/tcl-spectcl-it/tests/it_4/analyser_hooks.rs` — the pinned-set shape
 - `rust/tcl-registry/tests/it_4/value_transfers.rs` — the derivation agreement, the three declaration states at every scope and the increment's arithmetic; `rust/tcl-spectcl-it/tests/it_4/value_transfers.rs` — the pinned route set over the shipped packs

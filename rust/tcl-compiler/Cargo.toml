@@ -76,7 +76,6 @@ tcl-test-support = { path = "../tcl-test-support" }
 tcl-vm = { path = "../tcl-vm" }
 serde_json = { workspace = true }
 temp-env = "0.3"
-rayon = "1"
 # Tests that need `tcl-spectcl` or `tcl-engine-tclvm`, both above this crate,
 # live in `tcl-compiler-it`: as dev-dependencies here they would be rebuilt
 # after every edit to this crate before its unit tests link.

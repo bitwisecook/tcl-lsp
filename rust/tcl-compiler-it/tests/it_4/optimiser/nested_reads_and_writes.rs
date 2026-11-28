@@ -33,6 +33,7 @@ use super::*;
 /// increment left.
 #[test]
 fn a_nested_rmw_read_keeps_its_feeding_store_alive() {
+    crate::install_surfaces();
     let src = "set n 1\nset result [incr n]\nputs $result\nputs $n\n";
     assert!(
         !opt_fires(src, TCL, "O109"),
@@ -51,6 +52,7 @@ fn a_nested_rmw_read_keeps_its_feeding_store_alive() {
 /// merged into its own defs, instead of on a prepended invalidation statement.
 #[test]
 fn a_nested_rmw_read_on_a_call_host_keeps_its_feeding_store_alive() {
+    crate::install_surfaces();
     let src = "set n 1\nputs [incr n]\nputs $n\n";
     assert!(
         !opt_fires(src, TCL, "O109"),
@@ -71,6 +73,7 @@ fn a_nested_rmw_read_on_a_call_host_keeps_its_feeding_store_alive() {
 /// `5` then `1`.
 #[test]
 fn a_write_nested_in_a_braced_expr_word_kills_the_reaching_definition() {
+    crate::install_surfaces();
     let src = "set x 1\nputs [expr {$x + [incr x] + $x}]\nputs $x\n";
     let out = optimised(src, TCL);
     assert!(
@@ -87,6 +90,7 @@ fn a_write_nested_in_a_braced_expr_word_kills_the_reaching_definition() {
 /// statement's definitions hold.
 #[test]
 fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
+    crate::install_surfaces();
     for (src, forwarded) in [
         (
             "set n 1\nset r [expr {$n + [incr n]}]\nputs $r\nputs $n\n",
@@ -116,6 +120,7 @@ fn a_write_nested_in_a_braced_expr_word_keeps_its_feeding_store() {
 /// read is still made.
 #[test]
 fn a_braced_expr_word_with_no_nested_write_still_folds() {
+    crate::install_surfaces();
     let src = "set x 1\nputs [expr {$x + 1}]\nputs $x\n";
     let completed = tcl_engine_tclvm::execute_optimised_closed_source(
         src.to_owned(),
@@ -147,6 +152,7 @@ fn a_braced_expr_word_with_no_nested_write_still_folds() {
 /// `set x {1 1}`; tclsh 8.4.20 – 9.1b0 print `1 1` for both programs.
 #[test]
 fn a_direct_read_before_write_still_forwards_its_literal() {
+    crate::install_surfaces();
     let appended = optimised("set x 1\nlappend x $x\nputs $x\n", TCL);
     assert_eq!(
         appended, "set x {1 1}\nputs $x\n",
@@ -170,6 +176,7 @@ fn a_direct_read_before_write_still_forwards_its_literal() {
 /// `EXPR_CONCATENATES_ARGS` trait, not from the spelling `expr`.
 #[test]
 fn a_concatenated_expr_argument_is_an_expression_word() {
+    crate::install_surfaces();
     let src = "set x 1\nputs [expr 1 + {[incr x]}]\nputs $x\n";
     let out = optimised(src, TCL);
     assert!(
@@ -192,6 +199,7 @@ fn a_concatenated_expr_argument_is_an_expression_word() {
 /// and the later read folded to `1` where tclsh 8.6.18 / 9.0.4 print `2`.
 #[test]
 fn an_alias_to_expr_still_shows_its_nested_write() {
+    crate::install_surfaces();
     let src = "interp alias {} e {} expr\nset x 1\nputs [e {$x + [incr x]}]\nputs $x\n";
     let out = optimised(src, TCL);
     assert!(
@@ -211,6 +219,7 @@ fn an_alias_to_expr_still_shows_its_nested_write() {
 /// contribute its effects.
 #[test]
 fn a_structural_body_is_not_the_enclosing_statements_surface() {
+    crate::install_surfaces();
     let proc_body = "proc q {} {\n  set m 1\n  puts [incr m]\n}\nq\n";
     let codes = analyser_codes(proc_body, TCL);
     assert!(
@@ -249,6 +258,7 @@ fn a_structural_body_is_not_the_enclosing_statements_surface() {
 /// stays.
 #[test]
 fn a_condition_substitution_reads_the_frames_variables() {
+    crate::install_surfaces();
     for src in [
         "proc p {} { set n 5; if {[incr n]} { puts $n } }\np\n",
         "proc p {} { set s foo; while {[string length [append s bar]] < 12} { puts $s } }\np\n",
@@ -296,6 +306,7 @@ fn a_condition_substitution_reads_the_frames_variables() {
 /// {puts $n}}` printed `5` where tclsh 9.0.4 prints `6`.
 #[test]
 fn a_store_does_not_sink_past_a_condition_that_reads_it() {
+    crate::install_surfaces();
     let src = "proc p {} { set n 5; if {[incr n]} { puts $n } }\np\n";
     assert!(
         !opt_fires(src, TCL, "O125"),
@@ -339,6 +350,7 @@ fn a_store_does_not_sink_past_a_condition_that_reads_it() {
 /// global-frame effect stopped an `[info exists Params($k)]` guard folding.
 #[test]
 fn an_existence_query_is_neither_a_read_before_set_nor_a_write() {
+    crate::install_surfaces();
     let guard = "proc p {} { if {[info exists q]} { puts a } else { puts b } }\np\n";
     let codes = analyser_codes(guard, TCL);
     assert!(
@@ -364,6 +376,7 @@ fn an_existence_query_is_neither_a_read_before_set_nor_a_write() {
 /// and 9.0.4, which agree (#2227).
 #[test]
 fn a_quoted_expression_operand_is_folded_to_its_substituted_value() {
+    crate::install_surfaces();
     // tclsh prints `pre5`; O103 folded the call to the text `pre$x`.
     let value = "proc a {} { set x 5; return [expr {\"pre$x\"}] }\nputs [a]\n";
     assert!(
@@ -429,6 +442,7 @@ fn a_quoted_expression_operand_is_folded_to_its_substituted_value() {
 /// string as inert. Measured on tclsh 8.6.18 (#2118, found in review).
 #[test]
 fn a_quoted_expression_operand_is_not_inert() {
+    crate::install_surfaces();
     // The caller-evidence half: `id 9` is a call site, so `v` is not the
     // constant 7. tclsh prints `7` then `9`; the fold printed `7` twice.
     let evidence = "proc id {v} { return $v }\nproc a {} { set r [expr {\"[id 9]\"}]\n return $r }\nputs [id 7]\nputs [a]\n";

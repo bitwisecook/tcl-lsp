@@ -1,17 +1,17 @@
-diff --git a/rust/tcl-compiler/tests/it_2/main.rs b/rust/tcl-compiler/tests/it_2/main.rs
+diff --git a/rust/tcl-compiler-it/tests/it_2/main.rs b/rust/tcl-compiler-it/tests/it_2/main.rs
 index 3b1a9636..00453214 100644
---- a/rust/tcl-compiler/tests/it_2/main.rs
-+++ b/rust/tcl-compiler/tests/it_2/main.rs
+--- a/rust/tcl-compiler-it/tests/it_2/main.rs
++++ b/rust/tcl-compiler-it/tests/it_2/main.rs
 @@ -38,3 +38,4 @@ mod static_name_consumers;
  mod value_transfer_witnesses;
  mod var_escape_cfg;
  mod w210_empty_loop_source;
 +mod zz_probe;
-diff --git a/rust/tcl-compiler/tests/it_2/zz_probe.rs b/rust/tcl-compiler/tests/it_2/zz_probe.rs
+diff --git a/rust/tcl-compiler-it/tests/it_2/zz_probe.rs b/rust/tcl-compiler-it/tests/it_2/zz_probe.rs
 new file mode 100644
 index 00000000..b75b87ff
 --- /dev/null
-+++ b/rust/tcl-compiler/tests/it_2/zz_probe.rs
++++ b/rust/tcl-compiler-it/tests/it_2/zz_probe.rs
 @@ -0,0 +1,38 @@
 +use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 +use tcl_registry::model::ingress::static_context_for;

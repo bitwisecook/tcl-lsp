@@ -58,6 +58,7 @@ fn last_advice(unit: &CompilationUnit, var: &str) -> Option<LatticeValue> {
 
 #[test]
 fn a_rule_procedure_folds_its_cell_updates_as_advice() {
+    crate::install_surfaces();
     let unit = unit_of(
         &rule("proc p {} {set n 1; incr n; incr n 2; log local0. $n}", ""),
         IRULES,
@@ -77,6 +78,7 @@ fn a_rule_procedure_folds_its_cell_updates_as_advice() {
 
 #[test]
 fn a_rule_procedure_formal_is_bound_and_an_unassigned_local_is_not() {
+    crate::install_surfaces();
     let unit = unit_of(
         &rule(
             "proc p {a} {\n    if {[info exists a]} {log local0. yes}\n    \
@@ -91,6 +93,7 @@ fn a_rule_procedure_formal_is_bound_and_an_unassigned_local_is_not() {
 
 #[test]
 fn a_rule_procedure_summary_returns_its_constant() {
+    crate::install_surfaces();
     let source =
         "proc p {a} {return 1.0}\nwhen HTTP_REQUEST { set y [call p 1]; log local0. $y }\n";
     assert_eq!(
@@ -101,6 +104,7 @@ fn a_rule_procedure_summary_returns_its_constant() {
 
 #[test]
 fn a_rule_procedure_decides_a_condition_every_member_agrees_on() {
+    crate::install_surfaces();
     let source = rule(
         "proc p {} {foreach a {1 2} {if {$a > 0} {log local0. pos} else {log local0. neg}}}",
         "",
@@ -110,6 +114,7 @@ fn a_rule_procedure_decides_a_condition_every_member_agrees_on() {
 
 #[test]
 fn a_rule_procedure_loop_test_is_the_branch_that_leaves_it() {
+    crate::install_surfaces();
     let source = rule(
         "proc p {} {\n    for {set i 0} {$i < 3} {incr i} {}\n    \
          if {$i == 3} {log local0. yes} else {log local0. no}\n}",
@@ -120,6 +125,7 @@ fn a_rule_procedure_loop_test_is_the_branch_that_leaves_it() {
 
 #[test]
 fn a_rule_procedure_keeps_a_value_a_failed_match_preserves() {
+    crate::install_surfaces();
     let unit = unit_of(
         &rule(
             "proc p {} {\n    set a before\n    regexp {(x)(y)} zz a b\n    log local0. $a\n}",
@@ -134,6 +140,7 @@ fn a_rule_procedure_keeps_a_value_a_failed_match_preserves() {
 /// `# a` (tclsh 8.4.20), where 8.5 and later give `{#} a`.
 #[test]
 fn a_rule_procedure_quotes_a_leading_hash_as_its_84_base_does() {
+    crate::install_surfaces();
     let unit = unit_of(
         &rule("proc p {} {set r [list # a]; log local0. $r}", ""),
         IRULES,
@@ -143,6 +150,7 @@ fn a_rule_procedure_quotes_a_leading_hash_as_its_84_base_does() {
 
 #[test]
 fn a_rule_procedure_catch_that_may_set_a_variable_is_reported() {
+    crate::install_surfaces();
     let source = rule(
         "proc p {c} {catch {if {$c} {set x 1}}; log local0. $x}",
         "0",
@@ -152,6 +160,7 @@ fn a_rule_procedure_catch_that_may_set_a_variable_is_reported() {
 
 #[test]
 fn a_rule_procedure_string_is_test_types_its_arm() {
+    crate::install_surfaces();
     let source = rule(
         "proc p {s} {\n    set i [string trim $s]\n    \
          if {[string is integer -strict $i]} {\n        log local0. [lindex {a b c} $i]\n    }\n    \

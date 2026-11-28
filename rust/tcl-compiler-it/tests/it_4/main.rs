@@ -23,6 +23,25 @@
 mod body_identity;
 
 mod analyser;
+mod caller_frame_effects;
 mod cfg;
+mod dataflow;
+mod dispatch_proof_architecture;
+mod fix_safety;
+mod lsp_external_binding_reports;
+mod lsp_values_release;
+mod mro_lattice_adversarial;
+mod name_lookup_issue_witnesses;
 mod optimiser;
+mod slot_allocation;
+mod source_role_boundaries;
+mod span_char_boundaries;
+mod taint_depth;
 mod value_transfer_witnesses;
+mod wasm_api_architecture;
+
+/// Installs the shipped command surfaces; every test calls it before its
+/// first registry read.
+fn install_surfaces() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
+}

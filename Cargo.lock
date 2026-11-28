@@ -4653,7 +4653,6 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
- "rayon",
  "regex",
  "rustc-hash",
  "serde_json",
@@ -4682,6 +4681,8 @@ dependencies = [
 name = "tcl-compiler-it"
 version = "0.1.0"
 dependencies = [
+ "rayon",
+ "serde_json",
  "tcl-bytecode",
  "tcl-compiler",
  "tcl-core-types",
@@ -4689,9 +4690,12 @@ dependencies = [
  "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-names",
+ "tcl-native-model",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-source",
  "tcl-spectcl",
+ "tcl-syntax",
  "tcl-test-support",
 ]
 

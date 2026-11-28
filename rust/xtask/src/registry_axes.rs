@@ -1485,7 +1485,7 @@ mod tests {
         for excluded in [
             "rust/tcl-registry/src/registry.rs",
             "rust/tcl-registry/src/commands/tcl/if_.rs",
-            "rust/tcl-compiler/tests/it_4/analyser.rs",
+            "rust/tcl-compiler-it/tests/it_4/analyser.rs",
             "rust/tcl-lsp-core/src/formatting/tests.rs",
             "rust/tcl-compiler/src/lowering/tests/structured.rs",
         ] {

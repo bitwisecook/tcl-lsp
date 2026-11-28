@@ -330,7 +330,7 @@ Two structural properties bound how much further this goes:
   (reads the `tmp/` corpus).
 - **Salsa early cutoff and cascade breadth:** `cargo test -p tcl-lsp-db --test
   it_5 early_cutoff::`.
-- **`incremental == fresh` differential:** `cargo test -p tcl-compiler --test
+- **`incremental == fresh` differential:** `cargo test -p tcl-compiler-it --test
   differential_incremental -- --ignored` (corpus-gated, slow).
 - **Per-edit phase timing:** `cargo run --release -p tcl-lsp-db --example
   tail_profile FILE=…` (warm db, single-character body edit).

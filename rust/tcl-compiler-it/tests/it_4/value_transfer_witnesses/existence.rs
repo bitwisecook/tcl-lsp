@@ -184,6 +184,7 @@ fn the_increment_split(releases: &[(&'static str, String)]) {
 /// bound. Every fact is checked against `tclsh` wherever the line completes.
 #[test]
 fn the_absent_cell_release_table() {
+    crate::install_surfaces();
     let releases = releases_on_path();
     the_lines_every_release_reads_alike(&releases);
     the_increment_split(&releases);
@@ -204,6 +205,7 @@ fn the_absent_cell_release_table() {
 /// raises there.
 #[test]
 fn o109_keeps_a_store_an_existence_read_observes() {
+    crate::install_surfaces();
     let set_first = "proc p {} {set x 1; if {[info exists x]} {puts yes}}\np\n";
     let incr_first = "proc p {} {incr n; if {[info exists n]} {puts yes}}\np\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
@@ -270,6 +272,7 @@ fn o109_keeps_a_store_an_existence_read_observes() {
 /// neither dead arm survives the optimiser.
 #[test]
 fn a_parameter_binds_and_a_never_assigned_local_stays_unbound() {
+    crate::install_surfaces();
     let source = "proc p {a} {\n    if {[info exists a]} {puts yes} else {puts no}\n    \
                   if {[info exists b]} {puts wrong} else {puts right}\n}\np 1\n";
     for dialect in TCL_CORE_DIALECTS {
@@ -301,6 +304,7 @@ fn a_parameter_binds_and_a_never_assigned_local_stays_unbound() {
 /// a name never set both leave silently.
 #[test]
 fn unset_nocomplain_never_raises_bound_or_not() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    set x 1\n    unset -nocomplain x\n    \
                   unset -nocomplain x\n    unset -nocomplain never\n    \
                   puts done\n    puts [info exists x]\n}\np\n";
@@ -323,6 +327,7 @@ fn unset_nocomplain_never_raises_bound_or_not() {
 /// anywhere, so tclsh always takes the "no" arm.
 #[test]
 fn a_scope_alias_enters_maybound() {
+    crate::install_surfaces();
     let source =
         "proc p {} {\n    global g\n    if {[info exists g]} {puts yes} else {puts no}\n}\np\n";
     for dialect in DIALECTS {
@@ -348,6 +353,7 @@ fn a_scope_alias_enters_maybound() {
 /// `tclsh` runs.
 #[test]
 fn a_cross_event_variable_enters_maybound() {
+    crate::install_surfaces();
     let source = "when CLIENT_ACCEPTED {\n    set y 1\n}\n\
                   when HTTP_REQUEST {\n    if {[info exists y]} {puts yes} else {puts no}\n}\n";
     let unit = unit_of(source, "f5-irules");
@@ -374,6 +380,7 @@ fn a_cross_event_variable_enters_maybound() {
 /// writes the core command rooted (`::set`), as every chain fold does.
 #[test]
 fn o130_folds_a_chain_from_an_absent_cell() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    lappend l a\n    lappend l b\n    return $l\n}\nputs [p]\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
         let rewrites = rewrites_of(source, dialect);
@@ -393,6 +400,7 @@ fn o130_folds_a_chain_from_an_absent_cell() {
 /// program into a silent one.
 #[test]
 fn a_failing_dead_lappend_is_retained() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    set l \"a {b\"\n    lappend l c\n}\np\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
         assert!(!removes_store(source, dialect, "lappend l c"), "{dialect}");
@@ -413,6 +421,7 @@ fn a_failing_dead_lappend_is_retained() {
 /// release creates the cell (8.5 onwards) still removes it.
 #[test]
 fn a_failing_dead_incr_is_retained_under_84() {
+    crate::install_surfaces();
     let source = "proc p {} {\n    incr n\n    return\n}\np\n";
     for dialect in ["tcl8.4", "tcl", "f5-irules"] {
         assert!(!removes_store(source, dialect, "incr n"), "{dialect}");
@@ -443,6 +452,7 @@ fn a_failing_dead_incr_is_retained_under_84() {
 /// The source and its optimised form are both run on every release.
 #[test]
 fn an_unseen_call_ends_no_refinement_because_none_is_made() {
+    crate::install_surfaces();
     let source = "\
 proc init {} { set ::x 1 }
 proc cleanup {} { unset ::x }
@@ -500,6 +510,7 @@ p; unset ::x; q; r
 /// 9.1.0 print `gone` for both programs.
 #[test]
 fn an_unresolvable_head_ends_every_refinement() {
+    crate::install_surfaces();
     let computed = "\
 proc cleanup {} { uplevel 1 {unset x} }
 proc p {} {
@@ -553,6 +564,7 @@ p
 /// and after the optimiser.
 #[test]
 fn an_absent_start_anchor_reads_the_fact_at_the_statement() {
+    crate::install_surfaces();
     let source = "proc p {c} { switch -glob -- $c { a* { set l z } }; lappend l a; lappend l b; puts $l }\np abc\np q\n";
     for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "tcl"] {
         let rewrites = rewrites_of(source, dialect);
@@ -572,6 +584,7 @@ fn an_absent_start_anchor_reads_the_fact_at_the_statement() {
 /// print `0`.
 #[test]
 fn a_failing_dead_incr_on_a_maybound_place_is_retained_under_84() {
+    crate::install_surfaces();
     let source =
         "proc p {c} {\n    if {$c} {set n 1}\n    incr n\n    return\n}\nputs [catch {p 0} msg]\n";
     for dialect in ["tcl8.4", "tcl", "f5-irules"] {
@@ -600,6 +613,7 @@ fn a_failing_dead_incr_on_a_maybound_place_is_retained_under_84() {
 /// `no`, before and after the optimiser.
 #[test]
 fn a_substituted_body_clobbers_what_it_unsets() {
+    crate::install_surfaces();
     let source = "set x 1\nif {[catch {unset x}]} { puts err }\nif {[info exists x]} {puts yes} else {puts no}\n";
     for dialect in DIALECTS {
         assert!(!reports(source, dialect, DiagCode::I230), "{dialect}");

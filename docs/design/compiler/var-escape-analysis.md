@@ -130,9 +130,9 @@ from an escape tag.
 
 Focused coverage lives in:
 
-- `rust/tcl-compiler/tests/it_2/var_escape_cfg.rs`;
-- `rust/tcl-compiler/tests/it_3/var_escape_residual2.rs`;
-- `rust/tcl-compiler/tests/it_5/var_escape_typeinfer.rs`; and
+- `rust/tcl-compiler-it/tests/it_2/var_escape_cfg.rs`;
+- `rust/tcl-compiler-it/tests/it_3/var_escape_residual2.rs`;
+- `rust/tcl-compiler-it/tests/it_5/var_escape_typeinfer.rs`; and
 - `rust/tcl-codegen-it/tests/it_3/inlining.rs`.
 
 Tests cover literal and dynamic aliases, `info` forms, nested control flow,

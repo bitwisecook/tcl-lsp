@@ -70,6 +70,7 @@ fn value_in(
 /// after `tcl opt`.
 #[test]
 fn a_merge_drops_the_refinement() {
+    crate::install_surfaces();
     let source = "proc p {x} {\n    if {$x eq \"a\"} {\n        set r 1\n    } elseif {$x eq \"b\"} {\n        set r 2\n    } else {\n        return\n    }\n    puts \"$x $r\"\n    puts $x\n}\np a\np b\np c\n";
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
@@ -137,6 +138,7 @@ fn a_merge_drops_the_refinement() {
 /// in every function, so `q`'s `y` is never refined either.
 #[test]
 fn a_traced_variable_is_never_refined() {
+    crate::install_surfaces();
     let source = "set n 0\nproc tr {name1 name2 op} {upvar 1 $name1 v; incr ::n; if {$::n > 1} {set v changed}}\nproc p {x} {\n    trace add variable x read tr\n    if {$x eq \"a\"} {puts $x}\n}\nproc t {} {trace add variable y write tr}\nproc q {y} {\n    if {$y eq \"a\"} {puts $y}\n}\np a\n";
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
@@ -163,6 +165,7 @@ fn a_traced_variable_is_never_refined() {
 /// nothing for `b` under tclsh 8.4 to 9.1, before and after `tcl opt`.
 #[test]
 fn the_nested_equality_decides() {
+    crate::install_surfaces();
     let source = "proc p {x} {\n    if {$x eq \"a\"} {\n        if {$x eq \"b\"} {puts never} else {puts inner}\n    }\n}\nset ::v a\np $::v\nset ::v b\np $::v\n";
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
@@ -212,6 +215,7 @@ fn the_nested_equality_decides() {
 /// set prints that member for another.
 #[test]
 fn the_twelve_refinement_witnesses() {
+    crate::install_surfaces();
     let every = "proc p {x} {if {$x == 1} {set y $x; puts $y; return [string length $x]}; return none}\n\
                  proc q {x} {if {$x == 1} {set y $x; puts $y; return $x}; return none}\n\
                  proc r {x} {if {$x eq \"1\"} {return yes}; return no}\n\
@@ -287,6 +291,7 @@ pub(super) fn shimmer_lines(source: &str, dialect: &str) -> Vec<usize> {
 /// program prints `b` twice under every release, before and after `tcl opt`.
 #[test]
 fn a_string_is_test_types_its_arm() {
+    crate::install_surfaces();
     let source = "proc p {s} {\n    set i [string trim $s]\n    if {[string is integer -strict $i]} {\n        puts [lindex {a b c} $i]\n    }\n    puts [lindex {a b c} $i]\n}\nset ::v 1\np $::v\n";
     for dialect in TCL_CORE_DIALECTS {
         assert_eq!(shimmer_lines(source, dialect), vec![6], "{dialect}");
@@ -302,6 +307,7 @@ fn a_string_is_test_types_its_arm() {
 /// `tcl opt`.
 #[test]
 fn a_definition_in_a_refined_arm_takes_the_arms_value() {
+    crate::install_surfaces();
     let source = "proc p {x} {\n    if {$x eq \"a\"} {\n        set y $x\n        puts $y\n        puts $x\n    }\n}\nset ::v a\np $::v\nset ::v b\np $::v\n";
     for dialect in DIALECTS {
         let unit = unit_of(source, dialect);
@@ -338,6 +344,7 @@ fn a_definition_in_a_refined_arm_takes_the_arms_value() {
 /// prints `<>`.
 #[test]
 fn a_range_from_a_comparison_narrows_only_a_proved_integer() {
+    crate::install_surfaces();
     let end = "proc q {s} {\n    set i [string trim $s]\n    if {$i > 5} {\n        set x [lindex {a b c} $i]\n        puts $x\n    }\n}\nq end\n";
     let point = "proc g {s} {\n    set i [string trim $s]\n    if {$i != 7} { puts no } else { set x [lindex {a b c} $i]; puts $x }\n}\ng 7.0\n";
     let proved = "proc h {s} {\n    set i [string trim $s]\n    if {[string is integer -strict $i] && $i > 5} {\n        set x [lindex {a b c} $i]\n        puts <$x>\n    }\n}\nh 9\n";

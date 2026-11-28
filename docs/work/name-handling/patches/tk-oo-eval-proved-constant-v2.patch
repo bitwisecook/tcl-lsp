@@ -77,10 +77,10 @@ index 089b5eda..a9211f6e 100644
  /// Whether the handler's own footprint is exactly its literal script's.
  pub(super) fn has_delegated_literal_script(
      native: SourceNativeInvocation<'_>,
-diff --git a/rust/tcl-compiler/tests/it_4/analyser/class_factories/walk_blockers.rs b/rust/tcl-compiler/tests/it_4/analyser/class_factories/walk_blockers.rs
+diff --git a/rust/tcl-compiler-it/tests/it_4/analyser/class_factories/walk_blockers.rs b/rust/tcl-compiler-it/tests/it_4/analyser/class_factories/walk_blockers.rs
 index e1fdaa5e..1c47be83 100644
---- a/rust/tcl-compiler/tests/it_4/analyser/class_factories/walk_blockers.rs
-+++ b/rust/tcl-compiler/tests/it_4/analyser/class_factories/walk_blockers.rs
+--- a/rust/tcl-compiler-it/tests/it_4/analyser/class_factories/walk_blockers.rs
++++ b/rust/tcl-compiler-it/tests/it_4/analyser/class_factories/walk_blockers.rs
 @@ -463,3 +463,49 @@ fn deeply_nested_collection_loops_do_not_blow_the_static_walk_stack() {
          "the literally-written metaclass must survive the deep walk"
      );

@@ -3539,7 +3539,7 @@ helper without reading the rationale:
   the max, then the reporting tie-break), with
   `no_pack_overlay_leaves_every_floor_where_it_was` as the FN guard for
   a session that loads no packs.
-- `rust/tcl-compiler/tests/it_4/differential_group.rs` — the command / word
+- `rust/tcl-compiler-it/tests/it_4/differential_group.rs` — the command / word
   segmentation gate: `group_commands` against the shipping segmenter,
   command for command and word for word, over `samples/` and the Tcl
   9.0.4 library at three dialects and three nesting levels

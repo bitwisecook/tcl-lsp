@@ -20,3 +20,8 @@
 //! `tcl-engine-tclvm`, both of which depend on `tcl-compiler`. Keeping them
 //! out of `tcl-compiler`'s own dev-dependencies means an edit to
 //! `tcl-compiler` rebuilds only `tcl-compiler` before its unit tests link.
+//!
+//! Its integration tests that read the command registry live here too, and
+//! install the shipped surfaces before their first read, so `tcl-compiler`
+//! itself needs no surface crate to test. Their fixtures stay under
+//! `tcl-compiler/tests`, which other crates' tests share.
