@@ -50,7 +50,6 @@ rustc-hash = { workspace = true }
 tcl-compiler = { path = "../tcl-compiler", features = ["test-support"] }
 tcl-test-support = { path = "../tcl-test-support" }
 tcl-vm = { path = "../tcl-vm" }
-temp-env = "0.3"
 
 [lints]
 workspace = true

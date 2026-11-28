@@ -54,7 +54,7 @@ the original runtime operation.
 
 ### 2.2 Validation surfaces
 
-`rust/tcl-codegen/tests/wasm_tiers.rs` compiles deterministic
+`rust/tcl-codegen-it/tests/wasm_tiers.rs` compiles deterministic
 `samples/wasm/` programs with default, analysis and native options. Real-link
 tests compare stdout with committed Tcl oracle outputs. `TCL_REQUIRE_WASM_LINK=1`
 makes missing runtime-link prerequisites a failure.

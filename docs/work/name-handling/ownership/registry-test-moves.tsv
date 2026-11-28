@@ -11,12 +11,6 @@ tcl-engine-tclvm	lib	61	55 direct, 6 via the poisoned cache
 tcl-spec-studio	lib	108	39 direct, 69 via the poisoned cache
 tcl-spectcl	lib	106	27 direct, 79 via the poisoned cache
 tcl-codegen	lib	564	404 direct, 160 via the poisoned cache
-tcl-codegen	codegen_depth	53	53 direct, 0 via the poisoned cache
-tcl-codegen	codegen_integration	20	18 direct, 2 via the poisoned cache
-tcl-codegen	it_2	302	171 direct, 131 via the poisoned cache
-tcl-codegen	it_3	277	151 direct, 126 via the poisoned cache
-tcl-codegen	it_5	71	70 direct, 1 via the poisoned cache
-tcl-codegen	wasm_tiers	2	2 direct, 0 via the poisoned cache
 tcl-vm	lib	712	1 direct, 711 via the poisoned cache
 tcl-vm	it_5	8	1 direct, 7 via the poisoned cache
 tcl-compiler	lib	8620	2722 direct, 5898 via the poisoned cache

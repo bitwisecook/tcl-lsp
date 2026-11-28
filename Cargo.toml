@@ -72,6 +72,7 @@ members = [
     "rust/tcl-compiler",
     "rust/tcl-compiler-it",
     "rust/tcl-codegen",
+    "rust/tcl-codegen-it",
     "rust/tcl-diagram",
     "rust/tcl-diagram-it",
     "rust/tcl-vm",

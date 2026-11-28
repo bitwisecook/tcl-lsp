@@ -4621,6 +4621,26 @@ dependencies = [
  "tcl-syntax",
  "tcl-test-support",
  "tcl-vm",
+]
+
+[[package]]
+name = "tcl-codegen-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-bytecode",
+ "tcl-codegen",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-names",
+ "tcl-native-model",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-source",
+ "tcl-syntax",
+ "tcl-test-support",
+ "tcl-vm",
  "temp-env",
 ]
 
