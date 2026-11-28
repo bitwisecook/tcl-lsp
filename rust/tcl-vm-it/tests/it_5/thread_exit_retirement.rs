@@ -56,6 +56,7 @@ fn vm_holding_native_values() -> Vm {
 
 #[test]
 fn a_vm_dropped_by_a_thread_local_at_thread_exit_does_not_abort() {
+    crate::install_surfaces();
     let worker = std::thread::spawn(|| {
         // Register the holder's destructor first ...
         HOLDER.with(|_| ());
@@ -79,6 +80,7 @@ fn a_vm_dropped_by_a_thread_local_at_thread_exit_does_not_abort() {
 /// while the thread is alive).
 #[test]
 fn a_vm_dropped_while_the_thread_lives_retires_normally() {
+    crate::install_surfaces();
     let held = Value::new_native_string_bytes(b"observer".as_slice());
     let weak = held.downgrade_native_object();
     let mut vm = tcl_vm::test_support::native_vm();

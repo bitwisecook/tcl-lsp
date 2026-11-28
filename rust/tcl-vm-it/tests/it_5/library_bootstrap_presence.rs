@@ -58,6 +58,7 @@ fn presence(environment: &str) -> Vec<u8> {
 
 #[test]
 fn init_auto_path_presence_matches_each_native_core() {
+    crate::install_surfaces();
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     for version in TclVersion::ALL {
         let actual = presence(version.dialect_profile_name());

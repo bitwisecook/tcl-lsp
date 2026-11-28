@@ -28,6 +28,7 @@ use tcl_dialect::TclVersion;
 
 #[test]
 fn boolean_word_prefixes_are_literals_in_every_release() {
+    crate::install_surfaces();
     for version in TclVersion::ALL {
         let mut vm =
             tcl_vm::test_support::native_vm_for_release(version, Box::new(std::io::stdout()));
@@ -104,6 +105,7 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
 
 #[test]
 fn tip461_and_tip521_follow_the_registry_selected_runtime_release() {
+    crate::install_surfaces();
     let mut old =
         tcl_vm::test_support::native_vm_for_release(TclVersion::V8_6, Box::new(std::io::stdout()));
 

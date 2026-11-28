@@ -12,7 +12,6 @@ tcl-spec-studio	lib	108	39 direct, 69 via the poisoned cache
 tcl-spectcl	lib	106	27 direct, 79 via the poisoned cache
 tcl-codegen	lib	564	404 direct, 160 via the poisoned cache
 tcl-vm	lib	712	1 direct, 711 via the poisoned cache
-tcl-vm	it_5	8	1 direct, 7 via the poisoned cache
 tcl-compiler	lib	8620	2722 direct, 5898 via the poisoned cache
 tcl-compiler	command_definitions	1	1 direct, 0 via the poisoned cache
 tcl-compiler	command_resolution_conformance	1	1 direct, 0 via the poisoned cache

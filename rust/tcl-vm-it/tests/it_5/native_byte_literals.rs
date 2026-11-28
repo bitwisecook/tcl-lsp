@@ -36,6 +36,7 @@ fn literal_function(bytes: &[u8], verbatim: bool) -> FunctionAsm {
 
 #[test]
 fn unrepresented_native_byte_literal_is_a_host_refusal() {
+    crate::install_surfaces();
     for verbatim in [false, true] {
         let mut vm = tcl_vm::test_support::native_vm();
         let artifact = literal_function(&[0xff], verbatim);
@@ -49,6 +50,7 @@ fn unrepresented_native_byte_literal_is_a_host_refusal() {
 
 #[test]
 fn checked_unicode_native_literal_keeps_its_exact_bytes() {
+    crate::install_surfaces();
     let mut vm = tcl_vm::test_support::native_vm();
     let result = vm
         .try_run_function(&literal_function("ÿ".as_bytes(), true))

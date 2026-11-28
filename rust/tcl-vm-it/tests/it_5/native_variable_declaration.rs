@@ -20,6 +20,7 @@ use tcl_syntax::value::ValueOps;
 
 #[test]
 fn variable_declaration_arity_matches_each_original_worker() {
+    crate::install_surfaces();
     for (environment, oracle, extra_arity) in [
         (
             "tcl8.4",
