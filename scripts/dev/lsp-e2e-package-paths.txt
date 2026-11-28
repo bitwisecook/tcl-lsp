@@ -31,6 +31,8 @@ rust/tcl-lexer
 rust/tcl-lsp-core
 rust/tcl-lsp-db
 rust/tcl-lsp-server
+rust/tcl-names
+rust/tcl-native-model
 rust/tcl-numeric
 rust/tcl-pkg-model
 rust/tcl-platform

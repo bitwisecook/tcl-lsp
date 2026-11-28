@@ -243,6 +243,7 @@
 5	tcl-vm-it::it_5	test	tcl-vm-it	it_5
 5	tcl-vm-it::step_trace_inline_e2e	test	tcl-vm-it	step_trace_inline_e2e
 5	tcl-mcp::installs_surfaces	test	tcl-mcp	installs_surfaces
+5	tcl-names	lib	tcl-names	tcl_names
 5	tcl-native-model	lib	tcl-native-model	tcl_native_model
 5	tcl-bigip-schema	lib	tcl-bigip-schema	tcl_bigip_schema
 5	tcl-bigip-schema::it_5	test	tcl-bigip-schema	it_5
