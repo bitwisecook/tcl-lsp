@@ -1,0 +1,77 @@
+# Item 264a: tests that panic with NOT_INSTALLED when TCL_REGISTRY_TEST_INSTALL is empty (cargo test -p <crate> --no-fail-fast). Shrink-only.
+# A count includes the tests that then fail on the poisoned registry cache mutex: they read the registry too. A test target with no such test has no row.
+# Surveyed 28 November 2026 with no such test: tcl-names, tcl-pkg, tcl-bigip-io, tcl-engine-wasm, runtime/rust (its interpreter construction installs the shipped list).
+crate	target	count	note
+tcl-cli-support	lib	9	3 direct, 6 via the poisoned cache
+tcl-spec-hooks	lib	7	7 direct, 0 via the poisoned cache
+tcl-spec-hooks	const_fold_e2e	6	6 direct, 0 via the poisoned cache
+tcl-spec-hooks	containment_e2e	5	5 direct, 0 via the poisoned cache
+tcl-spec-hooks	families_e2e	2	2 direct, 0 via the poisoned cache
+bpf-tcl-codegen	lib	30	1 direct, 29 via the poisoned cache
+tcl-cshim	it_5	22	22 direct, 0 via the poisoned cache
+tcl-cshim	pkga_e2e	11	11 direct, 0 via the poisoned cache
+f5-xc	lib	15	1 direct, 14 via the poisoned cache
+f5-xc	differential	1	1 direct, 0 via the poisoned cache
+f5-xc	model	26	1 direct, 25 via the poisoned cache
+tcl-irule-test	lib	43	1 direct, 42 via the poisoned cache
+bpf-tcl-ir	lib	62	1 direct, 61 via the poisoned cache
+tcl-engine-tclvm	lib	61	55 direct, 6 via the poisoned cache
+tcl-engine-tclvm	doors	15	15 direct, 0 via the poisoned cache
+tcl-spec-studio	lib	108	39 direct, 69 via the poisoned cache
+tcl-spec-studio	it_2	3	1 direct, 2 via the poisoned cache
+tcl-spec-studio	it_3	24	1 direct, 23 via the poisoned cache
+tcl-spec-studio	it_4	14	10 direct, 4 via the poisoned cache
+tcl-spectcl	lib	106	27 direct, 79 via the poisoned cache
+tcl-spectcl	eval_loader	29	28 direct, 1 via the poisoned cache
+tcl-spectcl	golden_packs	2	2 direct, 0 via the poisoned cache
+tcl-spectcl	hook_plan_republish	1	1 direct, 0 via the poisoned cache
+tcl-spectcl	it_2	31	10 direct, 21 via the poisoned cache
+tcl-spectcl	it_3	30	6 direct, 24 via the poisoned cache
+tcl-spectcl	it_4	16	9 direct, 7 via the poisoned cache
+tcl-spectcl	it_5	105	11 direct, 94 via the poisoned cache
+tcl-spectcl	pack_source_e2e	9	4 direct, 5 via the poisoned cache
+tcl-spectcl	spec_corpus	4	2 direct, 2 via the poisoned cache
+tcl-codegen	lib	564	404 direct, 160 via the poisoned cache
+tcl-codegen	codegen_depth	53	53 direct, 0 via the poisoned cache
+tcl-codegen	codegen_integration	20	18 direct, 2 via the poisoned cache
+tcl-codegen	it_2	302	171 direct, 131 via the poisoned cache
+tcl-codegen	it_3	277	151 direct, 126 via the poisoned cache
+tcl-codegen	it_5	71	70 direct, 1 via the poisoned cache
+tcl-codegen	wasm_tiers	2	2 direct, 0 via the poisoned cache
+tcl-vm	lib	712	1 direct, 711 via the poisoned cache
+tcl-vm	it_5	8	1 direct, 7 via the poisoned cache
+tcl-compiler	lib	8620	2722 direct, 5898 via the poisoned cache
+tcl-compiler	command_definitions	1	1 direct, 0 via the poisoned cache
+tcl-compiler	command_resolution_conformance	1	1 direct, 0 via the poisoned cache
+tcl-compiler	differential_incremental	2	1 direct, 1 via the poisoned cache
+tcl-compiler	it_2	307	5 direct, 302 via the poisoned cache
+tcl-compiler	it_3	743	96 direct, 647 via the poisoned cache
+tcl-compiler	it_4	738	2 direct, 736 via the poisoned cache
+tcl-compiler	it_5	574	26 direct, 548 via the poisoned cache
+tcl-compiler	native_arithmetic_conformance	1	1 direct, 0 via the poisoned cache
+tcl-compiler	per_item_corpus	1	1 direct, 0 via the poisoned cache
+tcl-compiler	resolution_rewrite_oracles	2	1 direct, 1 via the poisoned cache
+tcl-compiler	semantic_identity_answer	3	3 direct, 0 via the poisoned cache
+tcl-registry	lib	875	589 direct, 286 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
+tcl-registry	dialect_oracle	3	3 direct, 0 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
+tcl-registry	it_2	15	9 direct, 6 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
+tcl-registry	it_3	99	14 direct, 85 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
+tcl-registry	it_4	133	104 direct, 29 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
+tcl-registry	it_5	38	18 direct, 20 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
+tcl-registry	doctests	2	2 direct, 0 via the poisoned cache; the registry core: its surface tests move with the surfaces in item 264
+tcl-debugger	lib	12	1 direct, 11 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	capability	9	1 direct, 8 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	composition	4	1 direct, 3 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	deploy	8	1 direct, 7 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	diagnostics	7	1 direct, 6 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	elf	4	1 direct, 3 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	hardening	18	1 direct, 17 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	kernel_codegen	10	1 direct, 9 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	loader_lifecycle	2	1 direct, 1 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	loops	6	1 direct, 5 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	maps	3	1 direct, 2 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	profiles	10	1 direct, 9 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	signed_arith	2	1 direct, 1 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	socket_filter	9	1 direct, 8 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	templates	8	1 direct, 7 via the poisoned cache; entry point (binary), above the catalogue: not moved
+bpf-tcl	xdp	7	1 direct, 6 via the poisoned cache; entry point (binary), above the catalogue: not moved
