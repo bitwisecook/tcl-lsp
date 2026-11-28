@@ -92,6 +92,7 @@ members = [
     "rust/bigip-report-gen/rust",
     "rust/tcl-f5mku",
     "rust/tcl-irules",
+    "rust/tcl-irules-it",
     "rust/tcl-lsp-core",
     "rust/tcl-lsp-db",
     "rust/tcl-lsp-db-it",

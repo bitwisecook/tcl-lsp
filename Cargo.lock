@@ -4880,6 +4880,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-irules-it"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-compiler",
+ "tcl-dialect",
+ "tcl-irules",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [

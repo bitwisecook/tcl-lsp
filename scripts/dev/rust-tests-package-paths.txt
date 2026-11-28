@@ -40,6 +40,7 @@ rust/tcl-host-c-abi
 rust/tcl-host-native
 rust/tcl-irule-test
 rust/tcl-irules
+rust/tcl-irules-it
 rust/tcl-lexer
 rust/tcl-lsp-core
 rust/tcl-lsp-db

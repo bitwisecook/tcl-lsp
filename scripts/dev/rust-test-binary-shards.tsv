@@ -31,7 +31,6 @@
 2	tcl-bigip-query	lib	tcl-bigip-query	tcl_bigip_query
 2	tcl-bigip::integration	test	tcl-bigip	integration
 2	tcl-engine-tclvm::doors	test	tcl-engine-tclvm	doors
-2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
 2	tcl-lexer::it_2	test	tcl-lexer	it_2
 2	tcl-lsp-core	lib	tcl-lsp-core	tcl_lsp_core
 2	tcl-lsp-db-it	lib	tcl-lsp-db-it	tcl_lsp_db_it
@@ -85,9 +84,6 @@
 3	tcl-expr	lib	tcl-expr	tcl_expr
 3	tcl-f5mku	lib	tcl-f5mku	tcl_f5mku
 3	tcl-host-c-abi	lib	tcl-host-c-abi	tcl_host_c_abi
-3	tcl-irules::event_emission	test	tcl-irules	event_emission
-3	tcl-irules::object_refs	test	tcl-irules	object_refs
-3	tcl-irules::script_bearing_args	test	tcl-irules	script_bearing_args
 3	tcl-lexer::edge_structural	test	tcl-lexer	edge_structural
 3	tcl-lsp-core::it_2	test	tcl-lsp-core	it_2
 3	tcl-lsp-core::it_3	test	tcl-lsp-core	it_3
@@ -158,7 +154,6 @@
 4	tcl-engine-api	lib	tcl-engine-api	tcl_engine_api
 4	tcl-host-native	lib	tcl-host-native	tcl_host_native
 4	tcl-irules	lib	tcl-irules	tcl_irules
-4	tcl-irules::walker	test	tcl-irules	walker
 4	tcl-lexer::it_4	test	tcl-lexer	it_4
 4	tcl-lsp-core::it_4	test	tcl-lsp-core	it_4
 4	tcl-lsp-core::it_5	test	tcl-lsp-core	it_5
@@ -252,3 +247,6 @@
 4	tcl-source::it_4	test	tcl-source	it_4
 2	tcl-bigip-it::integration	test	tcl-bigip-it	integration
 5	tcl-bigip-query-it::integration	test	tcl-bigip-query-it	integration
+4	tcl-irules-it::it_1	test	tcl-irules-it	it_1
+2	tcl-irules::resolve_args	test	tcl-irules	resolve_args
+3	tcl-irules::script_bearing_args	test	tcl-irules	script_bearing_args
