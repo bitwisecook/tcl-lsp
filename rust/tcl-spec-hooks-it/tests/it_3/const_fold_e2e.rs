@@ -159,6 +159,7 @@ fn native_fold(registry: &CommandRegistry, input: &str) -> Option<String> {
 
 #[test]
 fn the_pack_fold_agrees_with_the_native_folder_on_the_same_inputs() {
+    crate::install_surfaces();
     let folders = load();
     for input in INPUTS {
         let from_pack = (folders.pack)(&[input]);
@@ -174,6 +175,7 @@ fn the_pack_fold_agrees_with_the_native_folder_on_the_same_inputs() {
 
 #[test]
 fn a_pack_fold_body_folds_in_the_optimiser_pipeline() {
+    crate::install_surfaces();
     let folders = load();
     let optimisations = optimise_raw(
         "proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n",
@@ -195,6 +197,7 @@ fn a_pack_fold_body_folds_in_the_optimiser_pipeline() {
 
 #[test]
 fn the_body_abstains_the_way_the_native_folder_declines() {
+    crate::install_surfaces();
     let folders = load();
     // Non-ASCII: the body returns early, which is an abstention, and the
     // optimiser leaves the call alone.
@@ -215,6 +218,7 @@ fn the_body_abstains_the_way_the_native_folder_declines() {
 
 #[test]
 fn a_dynamic_word_never_reaches_the_body() {
+    crate::install_surfaces();
     let folders = load();
     // The literal-only precondition is the loader's: `[mylib::strlen $x]` has
     // a dynamic word, so no fold is attempted at all — the fold must not see
@@ -235,6 +239,7 @@ fn a_dynamic_word_never_reaches_the_body() {
 
 #[test]
 fn a_thread_without_the_host_abstains_rather_than_folding() {
+    crate::install_surfaces();
     let folders = load();
     pack_hooks::clear_host();
     assert_eq!(
@@ -257,6 +262,7 @@ const RELEASE_BODY: &str = r"
 /// abstains and the call is left as it was.
 #[test]
 fn a_versioned_pack_fold_is_told_the_profiles_evaluation_point() {
+    crate::install_surfaces();
     let host = Rc::new(tclvm_host());
     let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
         "mylib::release",

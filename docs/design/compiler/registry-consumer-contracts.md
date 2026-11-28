@@ -2166,7 +2166,7 @@ struct ArtefactIdentityManifest {
   (`runtime/rust/src/engine.rs`, behind its `engine` feature) and compiled to
   `wasm32` under wasmtime (`rust/tcl-engine-wasm`), so the hook host runs on it
   and a body is tested on two engines: every family in
-  `rust/tcl-spec-hooks/tests/families_e2e.rs` runs on the VM's engine and the
+  `rust/tcl-spec-hooks-it/tests/it_3/families_e2e.rs` runs on the VM's engine and the
   runtime's, and the runtime's two forms are held to the same cases from one
   copy (`runtime/rust/tests/common/engine_cases.rs`). The VM shipped to WASM
   (`rust/tcl-vm-wasm`) is not an engine of its own: its browser host evaluates

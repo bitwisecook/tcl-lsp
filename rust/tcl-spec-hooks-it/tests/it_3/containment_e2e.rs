@@ -151,6 +151,7 @@ fn literal(value: &str) -> HookWord<'_> {
 
 #[test]
 fn a_panicking_hook_abstains_and_is_quarantined_with_a_record() {
+    crate::install_surfaces();
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
     let installed = host.install_pack_hooks(PackPrograms {
@@ -196,6 +197,7 @@ fn a_panicking_hook_abstains_and_is_quarantined_with_a_record() {
 
 #[test]
 fn a_budget_blowout_is_recorded_and_quarantined_but_named_differently() {
+    crate::install_surfaces();
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
     let installed = host.install_pack_hooks(PackPrograms::new("slowlib").with(HookProgram::new(
@@ -215,6 +217,7 @@ fn a_budget_blowout_is_recorded_and_quarantined_but_named_differently() {
 
 #[test]
 fn an_erroring_hook_abstains_forever_but_is_logged_once() {
+    crate::install_surfaces();
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
     let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
@@ -246,6 +249,7 @@ fn an_erroring_hook_abstains_forever_but_is_logged_once() {
 /// (`Engine::confine_stores`); the hostile engine only claims it.
 #[test]
 fn a_body_with_a_global_counter_answers_identically_on_every_call() {
+    crate::install_surfaces();
     let host = tcl_spec_hooks::tclvm_host();
     let installed = host.install_pack_hooks(
         PackPrograms::new("mylib")
@@ -291,6 +295,7 @@ fn a_body_with_a_global_counter_answers_identically_on_every_call() {
 /// drops. Other math functions stay: `abs(-1)` still folds.
 #[test]
 fn the_generator_is_refused_under_the_measured_native_tcl_releases() {
+    crate::install_surfaces();
     let host = tcl_spec_hooks::tclvm_host();
     let installed = host.install_pack_hooks(
         PackPrograms::new("q")
@@ -342,6 +347,7 @@ fn the_generator_is_refused_under_the_measured_native_tcl_releases() {
 /// pure body is refused rather than executed with a compatible Tcl core.
 #[test]
 fn an_authored_vendor_profile_cannot_borrow_a_native_tcl_compiler() {
+    crate::install_surfaces();
     let host = tcl_spec_hooks::tclvm_host();
     let installed = host.install_pack_hooks(
         PackPrograms::new("q").with(
@@ -374,6 +380,7 @@ fn an_authored_vendor_profile_cannot_borrow_a_native_tcl_compiler() {
 /// answers `a b` on every call.
 #[test]
 fn a_local_accumulator_is_unaffected() {
+    crate::install_surfaces();
     let host = tcl_spec_hooks::tclvm_host();
     let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
         "mylib::acc",
@@ -392,6 +399,7 @@ fn a_local_accumulator_is_unaffected() {
 
 #[test]
 fn a_crash_in_one_pack_leaves_another_pack_working() {
+    crate::install_surfaces();
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
     let bad = host.install_pack_hooks(PackPrograms::new("badlib").with(HookProgram::new(
@@ -420,6 +428,7 @@ fn a_crash_in_one_pack_leaves_another_pack_working() {
 
 #[test]
 fn a_panic_costs_the_pack_its_other_hooks_and_nothing_more() {
+    crate::install_surfaces();
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
     let installed = host.install_pack_hooks(
@@ -456,6 +465,7 @@ fn a_panic_costs_the_pack_its_other_hooks_and_nothing_more() {
 
 #[test]
 fn a_fold_never_runs_on_a_call_carrying_a_dynamic_word() {
+    crate::install_surfaces();
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
     let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
@@ -481,6 +491,7 @@ fn a_fold_never_runs_on_a_call_carrying_a_dynamic_word() {
 
 #[test]
 fn an_unknown_slot_abstains() {
+    crate::install_surfaces();
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
     let orphan = pack_hooks::allocate(
@@ -500,6 +511,7 @@ fn an_unknown_slot_abstains() {
 /// afterwards, answers — the narrower budget did not outlive its call.
 #[test]
 fn a_declared_budget_narrows_the_host_for_its_call_only() {
+    crate::install_surfaces();
     // This control isolates command fuel from machine-dependent execution time.
     let config = tcl_spec_hooks::HostConfig::default();
     let host = tcl_spec_hooks::tclvm_host_with(tcl_spec_hooks::HostConfig {
@@ -553,6 +565,7 @@ fn a_declared_budget_narrows_the_host_for_its_call_only() {
 /// host's answers under the same declaration.
 #[test]
 fn a_declared_budget_above_the_hosts_runs_under_the_hosts() {
+    crate::install_surfaces();
     let host = tcl_spec_hooks::tclvm_host_with(tcl_spec_hooks::HostConfig {
         budget: Budget::of_commands(200),
         ..tcl_spec_hooks::HostConfig::default()
@@ -607,6 +620,7 @@ fn a_declared_budget_above_the_hosts_runs_under_the_hosts() {
 
 #[test]
 fn a_refused_release_factory_cannot_run_on_the_default_engine() {
+    crate::install_surfaces();
     let invocations = Rc::new(Cell::new(0));
     let attempts = Rc::new(Cell::new(0));
     let factory_attempts = Rc::clone(&attempts);

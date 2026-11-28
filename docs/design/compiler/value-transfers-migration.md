@@ -700,7 +700,7 @@ contract's budget section.
 - `rust/tcl-cli/tests/value_transfers_cli.rs` — `program_four_reaches_diag_and_opt_in_every_form`, `explore_sccp_prints_the_selection` and `diag_reads_the_decided_loop_header_and_the_dead_respond`
 - `rust/tcl-registry/tests/it_4/differential_fold.rs` — the oracle; `rust/tcl-spectcl/tests/it_4/analyser_hooks.rs` — the pinned-set shape
 - `rust/tcl-registry/tests/it_4/value_transfers.rs` — the derivation agreement, the three declaration states at every scope and the increment's arithmetic; `rust/tcl-spectcl/tests/it_4/value_transfers.rs` — the pinned route set over the shipped packs
-- `rust/tcl-spec-hooks/tests/const_fold_e2e.rs`, `rust/tcl-spectcl/tests/spec_corpus.rs` — O129 from a pack body; every shipped pack through the host
+- `rust/tcl-spec-hooks-it/tests/it_3/const_fold_e2e.rs`, `rust/tcl-spectcl/tests/spec_corpus.rs` — O129 from a pack body; every shipped pack through the host
 - `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` — the four-surface round trip
 
 ## Related docs

@@ -58,11 +58,13 @@ macro_rules! on_both_engines {
 
             #[test]
             fn tclvm() {
+                crate::install_surfaces();
                 body(tcl_spec_hooks::tclvm_host);
             }
 
             #[test]
             fn runtime() {
+                crate::install_surfaces();
                 body(runtime_host);
             }
         }
@@ -800,6 +802,7 @@ on_both_engines! {
 
 #[test]
 fn script_timing_resolver_retains_structured_payload_kinds() {
+    crate::install_surfaces();
     // naming.source.original-structured-script-timing
     // docs/design/analysis/name-resolution-proofs/original-structured-script-timing.md
     let slot = one_hook(tcl_spec_hooks::tclvm_host, HookProgram::new(

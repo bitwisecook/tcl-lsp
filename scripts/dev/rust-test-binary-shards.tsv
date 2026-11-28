@@ -44,7 +44,6 @@
 2	tcl-registry::dialect_oracle	test	tcl-registry	dialect_oracle
 2	tcl-registry::it_2	test	tcl-registry	it_2
 2	tcl-spec-hooks	lib	tcl-spec-hooks	tcl_spec_hooks
-2	tcl-spec-hooks::const_fold_e2e	test	tcl-spec-hooks	const_fold_e2e
 2	tcl-spec-studio::it_2	test	tcl-spec-studio	it_2
 2	tcl-spectcl::pack_is_real_tcl	test	tcl-spectcl	pack_is_real_tcl
 2	tcl-sslictcl	lib	tcl-sslictcl	tcl_sslictcl
@@ -99,8 +98,8 @@
 3	tcl-registry::package_protocol_oracle	test	tcl-registry	package_protocol_oracle
 3	tcl-runtime-api	lib	tcl-runtime-api	tcl_runtime_api
 3	tcl-sandbox	lib	tcl-sandbox	tcl_sandbox
-3	tcl-spec-hooks::containment_e2e	test	tcl-spec-hooks	containment_e2e
-3	tcl-spec-hooks::families_e2e	test	tcl-spec-hooks	families_e2e
+3	tcl-spec-hooks-it	lib	tcl-spec-hooks-it	tcl_spec_hooks_it
+3	tcl-spec-hooks-it::it_3	test	tcl-spec-hooks-it	it_3
 3	tcl-spec-studio::it_3	test	tcl-spec-studio	it_3
 3	tcl-spectcl::it_3	test	tcl-spectcl	it_3
 3	tcl-sslictcl::config_adapters	test	tcl-sslictcl	config_adapters

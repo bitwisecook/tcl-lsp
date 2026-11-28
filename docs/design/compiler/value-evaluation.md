@@ -2230,15 +2230,15 @@ implementation against the library's real behaviour.
 ## Test anchors
 
 - `rust/tcl-registry/tests/it_4/differential_fold.rs` — every fold against a real `tclsh`, per release found on `PATH`
-- `rust/tcl-spec-hooks/tests/const_fold_e2e.rs` — O129 driven by a `.tclspec` body
-- `rust/tcl-spec-hooks/tests/containment_e2e.rs` — the budget, quarantine, and poison paths the route's isolation rule extends
+- `rust/tcl-spec-hooks-it/tests/it_3/const_fold_e2e.rs` — O129 driven by a `.tclspec` body
+- `rust/tcl-spec-hooks-it/tests/it_3/containment_e2e.rs` — the budget, quarantine, and poison paths the route's isolation rule extends
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack's hooks through the sandboxed host at budget: a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, `value_tables_cover_their_catalogues`
 - `rust/tcl-registry/src/value_transfer/reference_body.rs` — `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it`, the scan's refusals; `rust/tcl-spectcl/src/loader/reference.rs` — `the_scans_whitelist_is_the_hosts`; `rust/tcl-spectcl/tests/pack_source_e2e.rs` — `a_reference_body_answers_through_the_host_as_the_procedure_does`, the parity of a derived body with the procedure it came from, and `a_derived_body_runs_under_the_release_the_call_is_analysed_under`, the rows that hold against each release's own `tclsh`; `rust/tcl-engine-tclvm/src/lib.rs` — `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called`
 - `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` — the four-surface round trip
 - `rust/tcl-spec-studio/tests/it_2/reference_doc.rs` — the generated field reference
 - `rust/tcl-vm-it/tests/it_5/dict_canonicalisation_parity.rs` — the list-rendering parity the folders depend on
-- `rust/tcl-spec-hooks/tests/containment_e2e.rs` — `a_body_with_a_global_counter_answers_identically_on_every_call`: the `fold [incr ::counter]` body raises under `Engine::confine_stores`, so every call answers alike
+- `rust/tcl-spec-hooks-it/tests/it_3/containment_e2e.rs` — `a_body_with_a_global_counter_answers_identically_on_every_call`: the `fold [incr ::counter]` body raises under `Engine::confine_stores`, so every call answers alike
 - `rust/tcl-regex/tests/it_2/precision_oracle.rs` — the regexp precision witnesses, the `^(a+)+\1$` / `^(a+)+b$` pair among them
 - `rust/tcl-registry/src/pack_hooks.rs` — `host_install_and_quarantine_bump_the_generation`; `runtime/rust/tests/common/engine_cases.rs` and `rust/tcl-engine-tclvm/src/lib.rs` — `set_release_pins_the_numeral_grammar`
 

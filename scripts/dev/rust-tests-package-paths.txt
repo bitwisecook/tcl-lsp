@@ -57,6 +57,7 @@ rust/tcl-runtime-api
 rust/tcl-sandbox
 rust/tcl-source
 rust/tcl-spec-hooks
+rust/tcl-spec-hooks-it
 rust/tcl-spec-studio
 rust/tcl-spectcl
 rust/tcl-sslictcl
