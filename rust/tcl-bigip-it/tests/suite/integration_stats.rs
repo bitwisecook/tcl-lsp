@@ -16,23 +16,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Differential tests for the **complete** BIG-IP graph edge walk on a
-//! realistic `bigip.conf` — the pilot value-spec dispatch, the legacy
-//! token-scan fallback, AND the iRule body walker.
-//! Companion to `graph_pilot.rs`, which exercises the compound pilot specs on a
-//! synthetic fixture; this pins the full walk on real config. The graph
-//! reproduces the expected edge set exactly. Self-contained — no external
-//! fixture generator at test time.
+//! Byte-stable fixtures for `compute_stats` (text report + JSON), checked
+//! against captured expected output on a realistic `bigip.conf`. Self-contained.
 
 use tcl_bigip::graph::{GraphContext, build_bigip_object_graph};
 use tcl_bigip::parser::parse_bigip_conf;
+use tcl_bigip::stats::{compute_stats, report_to_json};
 
 #[test]
-fn graph_edges() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+fn stats() {
+    crate::install();
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../tcl-bigip/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/bigip.conf")).expect("read config");
-    let golden = std::fs::read_to_string(format!("{dir}/graph_edges.golden.tsv")).expect("golden");
-
     let cfg = parse_bigip_conf(&source, "Common");
     let uri = "test://config".to_owned();
     let sources = [(uri.clone(), source)];
@@ -41,18 +36,26 @@ fn graph_edges() {
     let ctx = GraphContext::new();
     let graph = build_bigip_object_graph(&sources, &configs, &ctx);
 
-    let got: Vec<String> = graph
-        .edges
-        .iter()
-        .map(|e| {
-            format!(
-                "{}\t{}\t{}\t{}",
-                e.source_id, e.target_id, e.via_property, e.via_kind
-            )
-        })
-        .collect();
-    let want: Vec<&str> = golden.lines().collect();
+    for top in [10usize, 3] {
+        let report = compute_stats(&graph, &configs, top);
 
-    // Exact ordered comparison against the expected edge set.
-    assert_eq!(got, want, "graph edges differ from the expected set");
+        let mut text = report.text_report.clone();
+        if !text.ends_with('\n') {
+            text.push('\n');
+        }
+        let want_text = std::fs::read_to_string(format!("{dir}/stats_top{top}.txt.golden"))
+            .expect("read text golden");
+        assert_eq!(
+            text, want_text,
+            "stats text (top {top}) differs from the expected fixture"
+        );
+
+        let json = report_to_json(&report) + "\n";
+        let want_json = std::fs::read_to_string(format!("{dir}/stats_top{top}.json.golden"))
+            .expect("read json golden");
+        assert_eq!(
+            json, want_json,
+            "stats JSON (top {top}) differs from the expected fixture"
+        );
+    }
 }

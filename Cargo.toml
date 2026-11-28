@@ -84,6 +84,7 @@ members = [
     "rust/bpf-tcl-codegen",
     "rust/bpf-tcl",
     "rust/tcl-bigip",
+    "rust/tcl-bigip-it",
     "rust/tcl-bigip-io",
     "rust/tcl-bigip-query",
     "rust/bigip-report-gen/rust",

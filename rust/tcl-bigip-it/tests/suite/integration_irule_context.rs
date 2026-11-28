@@ -24,6 +24,7 @@ use tcl_bigip::parser::parse_bigip_conf;
 
 #[test]
 fn context_resolves_data_group_in_braced_expression_command() {
+    crate::install();
     let source = concat!(
         "ltm data-group internal /Common/braced_dg {\n",
         "    type string\n",

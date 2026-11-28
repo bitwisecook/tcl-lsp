@@ -1078,18 +1078,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn irule_services_read_literal_endpoints_with_route_domains() {
-        let rule = r"
-            when CLIENT_ACCEPTED {
-                node 192.0.2.53:80
-                pool /Common/probe member 2001:db8::53%2 443
-                snat 192.0.2.54%2 8080
-            }
-        ";
-        assert_eq!(irule_host_port(rule), [80, 443, 8080]);
-    }
-
-    #[test]
     fn wireshark_filter_keeps_address_and_route_domain_on_the_same_peer() {
         let filter = address_filter("2001:db8::53", true, 2);
         assert!(

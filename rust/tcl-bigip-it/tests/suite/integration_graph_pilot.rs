@@ -33,7 +33,8 @@ use tcl_bigip::parser::parse_bigip_conf;
 
 #[test]
 fn graph_pilot_edges() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+    crate::install();
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../tcl-bigip/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/graph_pilot.conf")).expect("read config");
     let golden = std::fs::read_to_string(format!("{dir}/graph_pilot.golden.tsv")).expect("golden");
 

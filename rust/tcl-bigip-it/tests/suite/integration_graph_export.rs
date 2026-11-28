@@ -25,7 +25,8 @@ use tcl_bigip::parser::parse_bigip_conf;
 
 #[test]
 fn graph_export() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+    crate::install();
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../tcl-bigip/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/graph_export.conf")).expect("read config");
     let cfg = parse_bigip_conf(&source, "Common");
     let uri = "test://config".to_owned();
@@ -50,7 +51,8 @@ fn graph_export() {
 
 #[test]
 fn graph_export_seeded_subgraph() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+    crate::install();
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../tcl-bigip/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/graph_export.conf")).expect("read config");
     let cfg = parse_bigip_conf(&source, "Common");
     let uri = "test://config".to_owned();
@@ -75,6 +77,7 @@ fn graph_export_seeded_subgraph() {
 
 #[test]
 fn graph_export_rejects_unknown_format() {
+    crate::install();
     let ctx = GraphContext::new();
     let graph = build_bigip_object_graph(&[], &[], &ctx);
     assert!(export_graph(&graph, "svg", &[], false, None).is_err());

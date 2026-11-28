@@ -28,7 +28,8 @@ use tcl_bigip::graph::{GraphContext, build_objects_for_source};
 
 #[test]
 fn graph_nodes() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+    crate::install();
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../tcl-bigip/tests/fixtures");
     let source = std::fs::read_to_string(format!("{dir}/bigip.conf")).expect("read config");
     let golden = std::fs::read_to_string(format!("{dir}/graph_nodes.golden.tsv")).expect("golden");
 

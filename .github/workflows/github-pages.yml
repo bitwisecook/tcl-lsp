@@ -66,6 +66,7 @@ on:
       - "rust/bigip-report-gen/wasm/**"
       - "rust/tcl-bigip-query/**"
       - "rust/tcl-bigip/**"
+      - "rust/tcl-bigip-it/**"
       - "rust/tcl-bigip-io/**"
       # Compiler-explorer sources: the WASM shell + the compiler/analysis core
       # it embeds, so highlighting/analysis fixes redeploy the live explorer.

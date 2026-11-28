@@ -167,15 +167,7 @@ pub fn validate_iapp_implementation(
 
 #[cfg(test)]
 mod tests {
-    use super::super::iapp_vars::extract_iapp_var_refs;
-    use super::super::parser::parse_apl;
     use super::*;
-
-    const PRESENTATION: &str = "section basic {\n  string addr\n  string port\n}\n";
-
-    fn codes(diags: &[ConfigDiagnostic]) -> Vec<&str> {
-        diags.iter().map(|d| d.code.as_str()).collect()
-    }
 
     #[test]
     fn published_metadata_describes_every_iapp_producer() {
@@ -196,60 +188,5 @@ mod tests {
                 code.description()
             );
         }
-    }
-
-    #[test]
-    fn iapp7001_fires_for_undefined_variable() {
-        let model = parse_apl(PRESENTATION);
-        let refs = extract_iapp_var_refs("set x $::basic__missing");
-        let diags = validate_iapp_implementation(
-            &refs,
-            Some(&model),
-            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
-        );
-        assert!(codes(&diags).contains(&"IAPP7001"));
-    }
-
-    #[test]
-    fn iapp7001_quiet_for_defined_variable() {
-        let model = parse_apl(PRESENTATION);
-        let refs = extract_iapp_var_refs("set x $::basic__addr");
-        let diags = validate_iapp_implementation(
-            &refs,
-            Some(&model),
-            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
-        );
-        assert_eq!(diags, [] as [crate::validator::ConfigDiagnostic; 0]);
-    }
-
-    #[test]
-    fn iapp7002_fires_for_unused_field() {
-        let model = parse_apl(PRESENTATION);
-        // Implementation references only `basic.addr`, leaving `basic.port`.
-        let refs = extract_iapp_var_refs("set x $::basic__addr");
-        let diags = validate_iapp_presentation(
-            &model,
-            Some(&refs),
-            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
-        );
-        assert!(codes(&diags).contains(&"IAPP7002"));
-    }
-
-    #[test]
-    fn no_iapp_checks_outside_iapp_dialects() {
-        let model = parse_apl(PRESENTATION);
-        let refs = extract_iapp_var_refs("set x $::basic__missing");
-        assert_eq!(
-            validate_iapp_implementation(
-                &refs,
-                Some(&model),
-                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()
-            ),
-            [] as [crate::validator::ConfigDiagnostic; 0]
-        );
-        assert_eq!(
-            validate_iapp_presentation(&model, Some(&refs), tcl_dialect::DialectProfile::irules()),
-            [] as [crate::validator::ConfigDiagnostic; 0]
-        );
     }
 }

@@ -5,6 +5,7 @@
 runtime/rust
 rust/f5-xc
 rust/tcl-bigip
+rust/tcl-bigip-it
 rust/tcl-bigip-query
 rust/tcl-bigip-schema
 rust/tcl-bytecode

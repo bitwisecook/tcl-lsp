@@ -4437,6 +4437,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bigip-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-bigip",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-lexer",
+ "tcl-registry",
+]
+
+[[package]]
 name = "tcl-bigip-query"
 version = "0.1.0"
 dependencies = [
