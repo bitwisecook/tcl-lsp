@@ -28,6 +28,7 @@ rust/tcl-core-types
 rust/tcl-cshim
 rust/tcl-debugger
 rust/tcl-diagram
+rust/tcl-diagram-it
 rust/tcl-dialect
 rust/tcl-engine-api
 rust/tcl-engine-tclvm

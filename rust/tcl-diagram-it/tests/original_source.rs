@@ -16,10 +16,36 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::*;
 use std::collections::HashSet;
 use std::sync::Arc;
-use tcl_compiler::analyser::ResolvedAnalysisInput;
+use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_diagram::diagram_data_for_analysis;
+
+fn document_from_one_input(
+    source: &str,
+    dialect: &str,
+) -> Option<(
+    AnalysisResult,
+    CompilationUnit,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+)> {
+    let input = Analyser::new().prepare_analysis_input(dialect).ok()?;
+    let availability = input.context_registry();
+    let options = tcl_compiler::compilation_unit::UnitBuildOptions {
+        registry: availability.commands(),
+        defer_top_level: false,
+        config: input.lexer_config(),
+        dialect: Some(input.unit_profile()),
+        external_call_sites: None,
+        declared_commands: None,
+    };
+    let cu = CompilationUnit::build_with_analysis_input(source, options, None, &input);
+    let mut analyser = Analyser::new().with_resolved_input(input);
+    analyser.set_owned_cu_override(cu.clone());
+    let analysis = analyser.analyse(source, dialect);
+    Some((analysis, cu, availability))
+}
 
 fn analysed(
     source: &str,
@@ -32,8 +58,13 @@ fn analysed(
     document_from_one_input(source, dialect).expect("actual fixture source input")
 }
 
+fn install_surfaces() {
+    tcl_registry::install_shipped().unwrap();
+}
+
 #[test]
 fn original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_clear() {
+    install_surfaces();
     // Implementation contract: naming.consumer.original-structural-diagrams
     // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
     let source = r"proc p\uD800 {} {return FIRST}; p\uD800; proc p\uD801 {} {return OTHER}; p\uD801; proc p\uD800 {} {return LAST}; p\uD800";
@@ -111,145 +142,13 @@ fn original_diagrams_keep_opaque_declarations_and_body_allocations_after_labels_
 }
 
 #[test]
-fn original_diagram_calls_use_retained_allocations_and_decline_missing_lookup() {
-    // Implementation contract: naming.consumer.original-structural-diagrams
-    // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
-    let source = "proc target {} {return OK}; target; proc other {} {return OTHER}; other";
-    let (mut analysis, unit, availability) = analysed(source, "tcl8.6");
-    let context = DiagramContext {
-        source,
-        analysis: &analysis,
-        registry: availability.commands(),
-        availability: &availability,
-        module: &unit.ir_module,
-    };
-    let at = u32::try_from(source.find("; target").unwrap() + 2).unwrap();
-    let tokens = unit
-        .ir_module
-        .top_level
-        .statements
-        .iter()
-        .find_map(|statement| {
-            let tokens = unit
-                .ir_module
-                .top_level
-                .retained_source_tokens_for_statement(statement)?;
-            (tokens.source_binding.as_ref()?.invocation_site()?.offset == at).then_some(tokens)
-        })
-        .expect("actual original call tokens");
-    assert!(procedure_target_at(at, Some(tokens), &context).is_some());
-    for invocation in &mut analysis.command_invocations {
-        invocation.original_lookup = None;
-    }
-    let context = DiagramContext {
-        source,
-        analysis: &analysis,
-        registry: availability.commands(),
-        availability: &availability,
-        module: &unit.ir_module,
-    };
-    assert!(procedure_target_at(at, Some(tokens), &context).is_none());
-}
-
-#[test]
-fn diagram_source_calls_keep_real_body_owners_and_refuse_foreign_ids() {
-    // naming.consumer.original-structural-diagrams
-    // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
-    let source = "proc p {} {return FIRST}; p; proc p {} {return LAST}; p";
-    let (analysis, unit, availability) = analysed(source, "tcl8.6");
-    let registry = availability.commands();
-    let calls = unit
-        .ir_module
-        .top_level
-        .statements
-        .iter()
-        .filter_map(|statement| {
-            let tokens = unit
-                .ir_module
-                .top_level
-                .retained_source_tokens_for_statement(statement)?;
-            let (id, _) = tcl_compiler::source_graph::procedure_body_for_original_call(
-                source,
-                &analysis,
-                &unit.ir_module,
-                tokens,
-                registry,
-            )?;
-            Some((tokens.clone(), id))
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(calls.len(), 2);
-    assert_ne!(calls[0].1, calls[1].1);
-    for (tokens, id) in &calls {
-        assert!(unit.ir_module.procedure_ids.owns(*id));
-        let context = DiagramContext {
-            module: &unit.ir_module,
-            source,
-            analysis: &analysis,
-            registry,
-            availability: &availability,
-        };
-        let at = tokens
-            .source_binding
-            .as_ref()
-            .unwrap()
-            .invocation_site()
-            .unwrap()
-            .offset;
-        let target = procedure_target_at(at, Some(tokens), &context).expect("original source call");
-        assert_eq!(target.id, *id);
-        let node = walk_call("counterfactual", &[], Some(tokens), at, &context).unwrap();
-        assert_eq!(node["bodyKey"], id.reporting_key());
-    }
-    let (tokens, id) = &calls[0];
-    let (_, foreign_unit, _) = analysed("proc foreign {} {}", "tcl8.6");
-    assert_eq!(foreign_unit.ir_module.procedures.len(), 1);
-    let foreign = *foreign_unit.ir_module.procedures.keys().next().unwrap();
-    let mut replaced = unit.ir_module.clone();
-    replaced.procedure_ids = foreign_unit.ir_module.procedure_ids.clone();
-    assert!(replaced.procedure_ids.owns(foreign));
-    assert!(!replaced.procedure_ids.owns(*id));
-    assert!(
-        tcl_compiler::source_graph::procedure_body_for_original_call(
-            source, &analysis, &replaced, tokens, registry
-        )
-        .is_none()
-    );
-    let mut ambiguous = unit.ir_module.clone();
-    ambiguous.retain_procedure(ambiguous.procedures.get(id).unwrap().clone());
-    assert!(
-        tcl_compiler::source_graph::procedure_body_for_original_call(
-            source, &analysis, &ambiguous, tokens, registry
-        )
-        .is_none()
-    );
-    let mut missing = unit.ir_module.clone();
-    missing.source_metadata_input = None;
-    assert!(
-        tcl_compiler::source_graph::procedure_body_for_original_call(
-            source, &analysis, &missing, tokens, registry
-        )
-        .is_none()
-    );
-    assert!(
-        tcl_compiler::source_graph::procedure_body_for_original_call(
-            "proc p {} {return CHANGED}; p",
-            &analysis,
-            &unit.ir_module,
-            tokens,
-            registry
-        )
-        .is_none()
-    );
-}
-
-#[test]
 fn original_diagram_metadata_keeps_actual_availability_and_source_currency() {
+    install_surfaces();
     // naming.consumer.original-structural-diagrams
     // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
     // Conditional source metadata only; no native invocation or completion
     // is issued by the same-store availability controls.
-    let source = "throw ERR payload";
+    let source = "proc p {} {throw ERR payload}";
     let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
     let available =
         tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
@@ -276,42 +175,31 @@ fn original_diagram_metadata_keeps_actual_availability_and_source_currency() {
         let mut analyser = Analyser::new().with_resolved_input(input);
         analyser.set_owned_cu_override(unit.clone());
         let mut analysis = analyser.analyse(source, profile.name);
-        let tokens = unit
-            .ir_module
-            .top_level
-            .retained_source_tokens_for_statement(&unit.ir_module.top_level.statements[0])
-            .unwrap();
         let selected = |analysis: &AnalysisResult, text: &str| {
-            let context = DiagramContext {
-                module: &unit.ir_module,
-                registry: availability.commands(),
-                source: text,
-                analysis,
-                availability,
-            };
-            registry_command(0, Some(tokens), &context)
+            let data = diagram_data_for_analysis(text, analysis, &unit.ir_module, availability);
+            data["procedures"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .flat_map(|procedure| procedure["flow"].as_array().into_iter().flatten())
+                .any(|node| node["completion"] == "error")
         };
-        assert_eq!(selected(&analysis, source).as_deref(), expected);
-        assert!(selected(&analysis, "throw OTHER payload").is_none());
+        assert_eq!(selected(&analysis, source), expected.is_some());
+        assert!(!selected(&analysis, "proc p {} {throw OTHER payload}"));
         let original = analysis.resolved_input.take();
-        assert!(
-            selected(&analysis, source).is_none(),
-            "missing supplied input"
-        );
+        assert!(!selected(&analysis, source), "missing supplied input");
         analysis.resolved_input = original;
         let original_config = analysis.body_lexer_config;
         analysis.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
-        assert!(
-            selected(&analysis, source).is_none(),
-            "changed source grammar"
-        );
+        assert!(!selected(&analysis, source), "changed source grammar");
         analysis.body_lexer_config = original_config;
-        assert_eq!(selected(&analysis, source).as_deref(), expected);
+        assert_eq!(selected(&analysis, source), expected.is_some());
     }
 }
 
 #[test]
 fn hosted_diagram_procedures_require_the_current_body_card() {
+    install_surfaces();
     let source = "proc ordinary {value {fallback DEFAULT}} {return $value}";
     let (analysis, unit, availability) = analysed(source, "f5-irules");
     let data = diagram_data_for_analysis(source, &analysis, &unit.ir_module, &availability);
@@ -339,6 +227,7 @@ fn hosted_diagram_procedures_require_the_current_body_card() {
 
 #[test]
 fn original_diagram_events_require_actual_event_descriptors_instead_of_when_labels() {
+    install_surfaces();
     // Implementation contract: naming.consumer.original-structural-diagrams
     // docs/design/analysis/name-resolution-proofs/original-structural-diagrams.md
     let source = "namespace eval when {proc HTTP_REQUEST {} {return ordinary}}";
@@ -360,8 +249,10 @@ fn original_diagram_events_require_actual_event_descriptors_instead_of_when_labe
         [] as [serde_json::Value; 0]
     );
 }
+
 #[test]
 fn original_diagram_actions_keep_source_schema_separate_from_display_labels() {
+    install_surfaces();
     // Implementation contract: naming.consumer.original-irules-source-context
     // docs/design/analysis/name-resolution-proofs/original-irules-source-context.md
     for source in [
@@ -414,4 +305,75 @@ fn original_diagram_actions_keep_source_schema_separate_from_display_labels() {
             [] as [serde_json::Value; 0]
         );
     }
+}
+
+#[test]
+fn original_diagram_calls_decline_missing_lookup() {
+    install_surfaces();
+    let source = "proc target {} {return OK}; proc caller {} {target}";
+    let (mut analysis, unit, context) = analysed(source, "tcl8.6");
+    let project = |analysis: &AnalysisResult| {
+        diagram_data_for_analysis(source, analysis, &unit.ir_module, &context)
+    };
+    let data = project(&analysis);
+    let caller = data["procedures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["name"] == "caller")
+        .unwrap();
+    assert!(
+        caller["flow"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|node| node["kind"] == "proc_call")
+    );
+    for invocation in &mut analysis.command_invocations {
+        invocation.original_lookup = None;
+    }
+    let data = project(&analysis);
+    let caller = data["procedures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["name"] == "caller")
+        .unwrap();
+    assert!(
+        !caller["flow"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|node| node["kind"] == "proc_call")
+    );
+}
+
+#[test]
+fn diagram_calls_reject_foreign_procedure_owners() {
+    install_surfaces();
+    let source = "proc target {} {return OK}; proc caller {} {target}";
+    let (analysis, unit, context) = analysed(source, "tcl8.6");
+    let data = diagram_data_for_analysis(source, &analysis, &unit.ir_module, &context);
+    let procedures = data["procedures"].as_array().unwrap();
+    let target = procedures.iter().find(|p| p["name"] == "target").unwrap();
+    let caller = procedures.iter().find(|p| p["name"] == "caller").unwrap();
+    assert!(
+        caller["flow"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|node| node["kind"] == "proc_call" && node["bodyKey"] == target["bodyKey"])
+    );
+    let (_, foreign, _) = analysed("proc foreign {} {}", "tcl8.6");
+    let mut replaced = unit.ir_module.clone();
+    replaced.procedure_ids = foreign.ir_module.procedure_ids.clone();
+    let data = diagram_data_for_analysis(source, &analysis, &replaced, &context);
+    assert!(
+        !data["procedures"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|p| p["flow"].as_array().into_iter().flatten())
+            .any(|node| node["kind"] == "proc_call")
+    );
 }

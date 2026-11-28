@@ -4719,6 +4719,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-diagram-it"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-compiler",
+ "tcl-diagram",
+ "tcl-dialect",
+ "tcl-irules",
+ "tcl-lexer",
+ "tcl-registry",
+ "tcl-syntax",
+]
+
+[[package]]
 name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
