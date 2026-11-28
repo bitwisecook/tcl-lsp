@@ -25,6 +25,8 @@
 1	tcl-compiler	lib	tcl-compiler	tcl_compiler
 2	bigip-report-gen-rust	lib	bigip-report-gen-rust	bigip_report_gen_rust
 2	bpf-tcl-codegen	lib	bpf-tcl-codegen	bpf_tcl_codegen
+2	bpf-tcl-codegen-it	lib	bpf-tcl-codegen-it	bpf_tcl_codegen_it
+2	bpf-tcl-codegen-it::it_2	test	bpf-tcl-codegen-it	it_2
 2	bpf-tcl::hardening	test	bpf-tcl	hardening
 2	bpf-tcl::loops	test	bpf-tcl	loops
 2	tcl-bigip-io	lib	tcl-bigip-io	tcl_bigip_io

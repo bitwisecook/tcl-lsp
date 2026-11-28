@@ -463,6 +463,15 @@ dependencies = [
  "bpf-tcl-ir",
  "tcl-core-types",
  "tcl-lexer",
+]
+
+[[package]]
+name = "bpf-tcl-codegen-it"
+version = "0.1.0"
+dependencies = [
+ "bpf-tcl-codegen",
+ "bpf-tcl-ir",
+ "tcl-core-types",
  "tcl-registry",
 ]
 

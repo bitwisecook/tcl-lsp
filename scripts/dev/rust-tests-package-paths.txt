@@ -6,6 +6,7 @@ runtime/rust
 rust/bigip-report-gen/rust
 rust/bpf-tcl
 rust/bpf-tcl-codegen
+rust/bpf-tcl-codegen-it
 rust/bpf-tcl-ir
 rust/f5-cli
 rust/f5-xc
