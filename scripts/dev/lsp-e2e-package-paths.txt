@@ -21,6 +21,7 @@ rust/tcl-dialect
 rust/tcl-engine-api
 rust/tcl-engine-tclvm
 rust/tcl-explorer
+rust/tcl-explorer-it
 rust/tcl-expr
 rust/tcl-host-c-abi
 rust/tcl-host-native

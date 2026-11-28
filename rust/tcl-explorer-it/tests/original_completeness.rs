@@ -16,22 +16,26 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::*;
+use tcl_explorer::{run_pipeline, serialise_result};
+
+mod support;
+
 #[test]
 fn original_structural_view_keeps_unknown_completeness_distinct_from_false() {
+    support::install_surfaces();
     // naming.source.original-configured-script-completeness
     // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
     // Display of the actual source query; no parser or execution authority.
-    let mut result = crate::run_pipeline("set x 1", "tcl8.6");
-    let view = build_structural_index(&crate::serialise::serialise_result(&result));
+    let mut result = run_pipeline("set x 1", "tcl8.6");
+    let view = tcl_explorer::build_view("structuralIndex", &serialise_result(&result));
     assert_eq!(view[0].label, "script complete: true");
     assert_eq!(view[0].style.as_deref(), Some("green"));
-    let incomplete = crate::run_pipeline("set x {", "tcl8.6");
-    let view = build_structural_index(&crate::serialise::serialise_result(&incomplete));
+    let incomplete = run_pipeline("set x {", "tcl8.6");
+    let view = tcl_explorer::build_view("structuralIndex", &serialise_result(&incomplete));
     assert_eq!(view[0].label, "script complete: false");
     assert_eq!(view[0].style.as_deref(), Some("yellow"));
     result.source.push_str("foreign");
-    let view = build_structural_index(&crate::serialise::serialise_result(&result));
+    let view = tcl_explorer::build_view("structuralIndex", &serialise_result(&result));
     assert_eq!(view[0].label, "script completeness unavailable");
     assert_eq!(view[0].style.as_deref(), Some("dim"));
 }
