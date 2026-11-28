@@ -375,6 +375,7 @@ fn only_nested_native_compilation(rendered: &Value, shipped: &Value) -> bool {
 /// drives one command that actually has them.
 #[test]
 fn arity_windows_survive_the_round_trip() {
+    crate::install_surfaces();
     use tcl_registry::arity::{Arity, ArityWindow};
     use tcl_registry::lifecycle::Lifecycle;
 
@@ -448,6 +449,7 @@ fn arity_windows_survive_the_round_trip() {
 /// the field a pack cannot author.
 #[test]
 fn stamp_windows_survive_the_round_trip() {
+    crate::install_surfaces();
     use tcl_registry::hooks::{CodegenHookId, InlineCodegenHookId};
     use tcl_registry::intrinsic::IntrinsicId;
     use tcl_registry::lifecycle::Lifecycle;
@@ -560,6 +562,7 @@ fn stamp_windows_survive_the_round_trip() {
 /// out rather than inventing a row.
 #[test]
 fn native_lowering_windows_are_unrecoverable_and_not_rendered() {
+    crate::install_surfaces();
     use tcl_registry::lifecycle::Lifecycle;
     use tcl_registry::native_lowering::NativeLowering;
     use tcl_registry::stamp_window::StampWindow;
@@ -593,6 +596,7 @@ fn native_lowering_windows_are_unrecoverable_and_not_rendered() {
 /// drives one pack command that does.
 #[test]
 fn alias_of_survives_the_round_trip() {
+    crate::install_surfaces();
     let spec = tcl_registry::CommandSpec {
         name: "vendor::unpack",
         arity: tcl_registry::arity::Arity::at_least(1),
@@ -617,6 +621,7 @@ fn alias_of_survives_the_round_trip() {
 /// `example` beside it stays hover text.
 #[test]
 fn structured_examples_survive_the_round_trip() {
+    crate::install_surfaces();
     use tcl_registry::documentation::{
         DocumentationAnnotation, DocumentationCarrier, DocumentationExample,
     };
@@ -669,6 +674,7 @@ fn structured_examples_survive_the_round_trip() {
 /// 8.4–9.1 and a 9.0-only window, and a package axis.
 #[test]
 fn side_effect_knowledge_survives_the_round_trip() {
+    crate::install_surfaces();
     use tcl_dialect::model::{Family, SpecSurface};
     use tcl_registry::knowledge::Knowledge;
     use tcl_registry::side_effects::{SideEffect, SideEffectTarget};
@@ -721,6 +727,7 @@ fn side_effect_knowledge_survives_the_round_trip() {
 /// notice, and the row with it.
 #[test]
 fn an_unreadable_completeness_window_is_refused() {
+    crate::install_surfaces();
     let spec = tcl_registry::CommandSpec {
         name: "mypkg::emit",
         arity: tcl_registry::arity::Arity::exact(1),
@@ -745,6 +752,7 @@ fn an_unreadable_completeness_window_is_refused() {
 /// example with it, rather than drawn somewhere else.
 #[test]
 fn a_structured_example_note_off_its_line_is_refused() {
+    crate::install_surfaces();
     use tcl_registry::documentation::{DocumentationAnnotation, DocumentationExample};
     const NOTES: &[DocumentationAnnotation] = &[DocumentationAnnotation::new(
         0,
@@ -783,6 +791,7 @@ fn a_structured_example_note_off_its_line_is_refused() {
 /// command, but no shipped spec declares the other three.
 #[test]
 fn runtime_backing_survives_the_round_trip() {
+    crate::install_surfaces();
     use tcl_registry::RuntimeBacking;
 
     for backing in [
@@ -831,6 +840,7 @@ fn runtime_backing_survives_the_round_trip() {
 /// no notice, the reloaded declaration equal to the one drafted.
 #[test]
 fn a_declared_semantics_plan_survives_the_round_trip() {
+    crate::install_surfaces();
     use tcl_registry::types::TclType;
     use tcl_registry::value_transfer::{
         DeclaredEffect, DeclaredEvaluation, DeclaredSemantics, DeclaredStores, DeclaredStructure,
@@ -903,6 +913,7 @@ fn a_declared_semantics_plan_survives_the_round_trip() {
 ///
 #[test]
 fn cardinality_role_contract_survives_native_spectcl_and_rust_rendering() {
+    crate::install_surfaces();
     let registry = tcl_registry::CommandRegistry::build_default();
     let spec = registry.get("foreach").expect("native foreach descriptor");
     let shipped = Value::Object(draft::from_command_spec(spec));
@@ -934,6 +945,7 @@ fn cardinality_role_contract_survives_native_spectcl_and_rust_rendering() {
 
 #[test]
 fn structured_layout_contract_survives_native_spectcl_and_rust_rendering() {
+    crate::install_surfaces();
     let registry = tcl_registry::CommandRegistry::build_default();
     let spec = registry.get("regsub").expect("native regsub descriptor");
     let shipped = Value::Object(draft::from_command_spec(spec));
@@ -963,6 +975,7 @@ fn structured_layout_contract_survives_native_spectcl_and_rust_rendering() {
 /// fail closed when it is loaded again.
 #[test]
 fn native_resolver_capabilities_survive_the_round_trip() {
+    crate::install_surfaces();
     let shipped = load_command("binary", "bpf").expect("binary is in the BPF registry");
     let trip = round_trip(&shipped);
 
@@ -999,6 +1012,7 @@ fn native_resolver_capabilities_survive_the_round_trip() {
 #[test]
 #[allow(clippy::too_many_lines)]
 fn every_command_in_every_dialect_round_trips_through_spectcl() {
+    crate::install_surfaces();
     let mut report = String::new();
     let mut failures: Vec<String> = Vec::new();
     let mut total = 0usize;
@@ -1241,6 +1255,7 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
 /// only its shipped name carries.
 #[test]
 fn every_shipped_grammar_spelt_inline_reloads_as_itself() {
+    crate::install_surfaces();
     for (name, grammar) in tcl_spectcl::SHIPPED_DEFINITION_BODIES {
         let block = draft::definition_body_block(grammar);
         let mut command = draft::default_command_draft();
@@ -1334,6 +1349,7 @@ fn notice_shape(notice: &str) -> String {
 /// applied to the packs the syntax was designed from.
 #[test]
 fn the_twelve_port_fixtures_render_and_reload_as_themselves() {
+    crate::install_surfaces();
     let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../docs/design/spec-dsl-examples");
     let mut report = String::new();
@@ -1457,6 +1473,7 @@ fn statement_words(source: &str, _command: &str) -> BTreeSet<String> {
 /// one of them would silently re-merge the bug the split removed.
 #[test]
 fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
+    crate::install_surfaces();
     let shipped = load_command("namespace", "tcl").expect("tcl has `namespace`");
     let trip = round_trip(&shipped);
 
@@ -1535,6 +1552,7 @@ fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
 /// inheriting one and re-offer it the parent's union.
 #[test]
 fn an_empty_sub_subcommand_option_block_means_empty_not_inherit() {
+    crate::install_surfaces();
     let shipped = load_command("namespace", "tcl").expect("tcl has `namespace`");
     let trip = round_trip(&shipped);
 

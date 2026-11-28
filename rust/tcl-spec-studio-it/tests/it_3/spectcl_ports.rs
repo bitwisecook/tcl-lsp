@@ -528,6 +528,7 @@ fn subcommand<'a>(draft: &'a Value, name: &str) -> Option<&'a Value> {
 #[test]
 #[allow(clippy::too_many_lines)]
 fn every_port_loads_and_matches_its_shipped_spec() {
+    crate::install_surfaces();
     let dir = examples_dir();
     let mut report = String::new();
     let mut failures = 0usize;
@@ -677,6 +678,7 @@ fn every_port_loads_and_matches_its_shipped_spec() {
 /// words drop with a notice and everything around them survives.
 #[test]
 fn unknown_vocabulary_drops_with_a_notice_rather_than_failing() {
+    crate::install_surfaces();
     let pack = spectcl::evaluate_pack(
         r"
         speclib probe 1.0 {
@@ -721,6 +723,7 @@ fn unknown_vocabulary_drops_with_a_notice_rather_than_failing() {
 /// lands.
 #[test]
 fn hook_bodies_are_carried_as_text_with_their_family_metadata() {
+    crate::install_surfaces();
     let source = std::fs::read_to_string(examples_dir().join("return.tclspec")).expect("return");
     let pack = spectcl::evaluate_pack(&source);
     let command = pack.command("return").expect("return");
@@ -766,6 +769,7 @@ fn hook_bodies_are_carried_as_text_with_their_family_metadata() {
 /// of declaring the data it reads.
 #[test]
 fn derivations_are_recorded_as_derivations() {
+    crate::install_surfaces();
     for (file, command, field, keyword) in [
         (
             "oo-class.tclspec",
@@ -797,6 +801,7 @@ fn derivations_are_recorded_as_derivations() {
 /// with the compiled `&'static str` byte for byte.
 #[test]
 fn braced_prose_survives_byte_for_byte() {
+    crate::install_surfaces();
     let source = std::fs::read_to_string(examples_dir().join("return.tclspec")).expect("return");
     let pack = spectcl::evaluate_pack(&source);
     let hover = pack
@@ -898,6 +903,7 @@ const SHIPPED_GRAMMARS: &[(&str, &str, &[&str])] = &[
 /// grammar (and every subcommand's) must come back unchanged.
 #[test]
 fn the_clause_grammar_derivation_agrees_with_the_shipped_walk() {
+    crate::install_surfaces();
     for (file, name, corpus) in [
         ("if.tclspec", "if", IF_CORPUS),
         ("foreach.tclspec", "foreach", FOREACH_CORPUS),
@@ -992,6 +998,7 @@ fn the_clause_grammar_derivation_agrees_with_the_shipped_walk() {
 /// rather than pass silently.
 #[test]
 fn the_manufacturer_derivation_agrees_with_the_shipped_resolver() {
+    crate::install_surfaces();
     let source = std::fs::read_to_string(examples_dir().join("oo-class.tclspec")).expect("oo");
     let pack = spectcl::evaluate_pack(&source);
     let ported = pack.command("oo::class").expect("oo::class");
@@ -1050,6 +1057,7 @@ fn the_manufacturer_derivation_agrees_with_the_shipped_resolver() {
 /// descriptor across unchanged.
 #[test]
 fn upvar_carries_its_frame_effect_verbatim() {
+    crate::install_surfaces();
     let source = std::fs::read_to_string(examples_dir().join("upvar.tclspec")).expect("upvar");
     let pack = spectcl::evaluate_pack(&source);
     let ported = pack.command("upvar").expect("upvar");
@@ -1068,6 +1076,7 @@ fn upvar_carries_its_frame_effect_verbatim() {
 /// siblings).
 #[test]
 fn the_subst_port_answers_the_same_kinds_as_the_shipped_spec() {
+    crate::install_surfaces();
     let source = std::fs::read_to_string(examples_dir().join("subst.tclspec")).expect("subst");
     let pack = spectcl::evaluate_pack(&source);
     assert!(
@@ -1114,6 +1123,7 @@ fn the_subst_port_answers_the_same_kinds_as_the_shipped_spec() {
 /// (negative). An unwritten `callable` slot is positioned by the row's roles.
 #[test]
 fn a_member_row_without_an_effect_is_dropped_with_a_notice() {
+    crate::install_surfaces();
     use tcl_registry::definer::{CallableRole, MemberEffect, MemberReceiver};
     let source = r"speclib probe 2.1 {
 command probe::class {
@@ -1178,6 +1188,7 @@ command probe::class {
 /// field for field — the only way the port's "complete" claim is checkable.
 #[test]
 fn the_inline_snit_grammar_matches_the_shipped_constant() {
+    crate::install_surfaces();
     let source = std::fs::read_to_string(examples_dir().join("snit-type.tclspec")).expect("snit");
     let pack = spectcl::evaluate_pack(&source);
     let built = pack
@@ -1263,6 +1274,7 @@ fn the_inline_snit_grammar_matches_the_shipped_constant() {
 
 #[test]
 fn implicit_receiver_roles_round_trip_without_becoming_all_implicit_variables() {
+    crate::install_surfaces();
     use tcl_registry::definer::{DefinitionBodyGrammar, ITCL_GRAMMAR};
     const GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
         implicit_vars: &["receiver", "options"],

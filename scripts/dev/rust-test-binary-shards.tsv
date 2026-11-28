@@ -46,7 +46,8 @@
 2	tcl-registry::dialect_oracle	test	tcl-registry	dialect_oracle
 2	tcl-registry::it_2	test	tcl-registry	it_2
 2	tcl-spec-hooks	lib	tcl-spec-hooks	tcl_spec_hooks
-2	tcl-spec-studio::it_2	test	tcl-spec-studio	it_2
+2	tcl-spec-studio-it	lib	tcl-spec-studio-it	tcl_spec_studio_it
+2	tcl-spec-studio-it::it_2	test	tcl-spec-studio-it	it_2
 2	tcl-spectcl::pack_is_real_tcl	test	tcl-spectcl	pack_is_real_tcl
 2	tcl-sslictcl	lib	tcl-sslictcl	tcl_sslictcl
 2	tcl-sslictcl::golden	test	tcl-sslictcl	golden
@@ -98,7 +99,7 @@
 3	tcl-sandbox	lib	tcl-sandbox	tcl_sandbox
 3	tcl-spec-hooks-it	lib	tcl-spec-hooks-it	tcl_spec_hooks_it
 3	tcl-spec-hooks-it::it_3	test	tcl-spec-hooks-it	it_3
-3	tcl-spec-studio::it_3	test	tcl-spec-studio	it_3
+3	tcl-spec-studio-it::it_3	test	tcl-spec-studio-it	it_3
 3	tcl-spectcl::it_3	test	tcl-spectcl	it_3
 3	tcl-sslictcl::config_adapters	test	tcl-sslictcl	config_adapters
 3	tcl-syntax	lib	tcl-syntax	tcl_syntax
@@ -167,7 +168,7 @@
 4	tcl-regex	lib	tcl-regex	tcl_regex
 4	tcl-regex::reg_test	test	tcl-regex	reg_test
 4	tcl-registry::it_4	test	tcl-registry	it_4
-4	tcl-spec-studio::it_4	test	tcl-spec-studio	it_4
+4	tcl-spec-studio-it::it_4	test	tcl-spec-studio-it	it_4
 4	tcl-spectcl::eval_loader	test	tcl-spectcl	eval_loader
 4	tcl-spectcl::it_2	test	tcl-spectcl	it_2
 4	tcl-spectcl::it_4	test	tcl-spectcl	it_4

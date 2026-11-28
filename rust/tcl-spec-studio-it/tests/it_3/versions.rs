@@ -168,6 +168,7 @@ fn has_note(command: &Inferred, needle: &str) -> bool {
 
 #[test]
 fn the_analysed_releases_are_reported_in_version_order() {
+    crate::install_surfaces();
     let import = imported(false);
     assert_eq!(import.package.as_deref(), Some("fakepkg"));
     assert_eq!(import.versions, vec!["1.0", "1.1", "1.2"]);
@@ -175,6 +176,7 @@ fn the_analysed_releases_are_reported_in_version_order() {
 
 #[test]
 fn a_command_present_throughout_a_partial_history_has_no_introduction() {
+    crate::install_surfaces();
     let import = imported(false);
     let stable = find(&import, "fakepkg::stable");
     assert_eq!(
@@ -195,6 +197,7 @@ fn a_command_present_throughout_a_partial_history_has_no_introduction() {
 
 #[test]
 fn a_complete_history_makes_the_earliest_release_the_introduction() {
+    crate::install_surfaces();
     let import = imported(true);
     let stable = find(&import, "fakepkg::stable");
     assert_eq!(stable.draft["introduced_version"], json!("1.0"));
@@ -203,6 +206,7 @@ fn a_complete_history_makes_the_earliest_release_the_introduction() {
 
 #[test]
 fn a_command_that_appears_later_is_introduced_there() {
+    crate::install_surfaces();
     let import = imported(false);
     let fresh = find(&import, "fakepkg::fresh");
     assert_eq!(fresh.draft["introduced_version"], json!("1.1"));
@@ -215,6 +219,7 @@ fn a_command_that_appears_later_is_introduced_there() {
 
 #[test]
 fn a_command_that_disappears_is_retired_at_the_release_that_lacks_it() {
+    crate::install_surfaces();
     let import = imported(true);
     let doomed = find(&import, "fakepkg::doomed");
     assert_eq!(doomed.draft["introduced_version"], json!("1.0"));
@@ -232,6 +237,7 @@ fn a_command_that_disappears_is_retired_at_the_release_that_lacks_it() {
 
 #[test]
 fn a_command_that_comes_back_is_left_unbounded_with_a_warning() {
+    crate::install_surfaces();
     let import = imported(true);
     let flaky = find(&import, "fakepkg::flaky");
     assert_eq!(
@@ -253,6 +259,7 @@ fn a_command_that_comes_back_is_left_unbounded_with_a_warning() {
 
 #[test]
 fn the_merged_draft_keeps_the_newest_shape_and_reports_the_change() {
+    crate::install_surfaces();
     let import = imported(true);
     let grew = find(&import, "fakepkg::grew");
     assert_eq!(grew.draft["arity"]["min"], json!(1));
@@ -266,6 +273,7 @@ fn the_merged_draft_keeps_the_newest_shape_and_reports_the_change() {
 
 #[test]
 fn an_arity_that_changed_is_derived_into_closed_windows() {
+    crate::install_surfaces();
     // `fakepkg::grew` is `1` in 1.0-1.1 and `1..2` from 1.2. That is two
     // runs, so two windows — and the first is *closed* where the second
     // begins, because a window with no retirement never ends and two open
@@ -307,6 +315,7 @@ fn an_arity_that_changed_is_derived_into_closed_windows() {
 
 #[test]
 fn a_signature_that_never_changed_derives_no_windows() {
+    crate::install_surfaces();
     // The plain `arity` already describes it, and a single all-releases
     // window would say the same thing less clearly.
     let import = imported(true);
@@ -329,6 +338,7 @@ fn a_signature_that_never_changed_derives_no_windows() {
 
 #[test]
 fn an_option_that_appears_later_gets_its_own_introduction() {
+    crate::install_surfaces();
     let import = imported(true);
     let render = find(&import, "fakepkg::render");
     assert_eq!(
@@ -352,6 +362,7 @@ fn an_option_that_appears_later_gets_its_own_introduction() {
 
 #[test]
 fn a_value_joining_a_closed_set_becomes_a_command_level_gate() {
+    crate::install_surfaces();
     let import = imported(true);
     let encode = find(&import, "fakepkg::encode");
     assert_eq!(
@@ -391,6 +402,7 @@ fn a_value_joining_a_closed_set_becomes_a_command_level_gate() {
 
 #[test]
 fn a_doc_comment_saying_deprecated_is_a_suggestion_only() {
+    crate::install_surfaces();
     let import = imported(true);
     let stable = find(&import, "fakepkg::stable");
     assert_eq!(
@@ -407,6 +419,7 @@ fn a_doc_comment_saying_deprecated_is_a_suggestion_only() {
 
 #[test]
 fn out_of_order_snapshots_are_sorted_with_a_warning() {
+    crate::install_surfaces();
     let mut shuffled = releases();
     shuffled.reverse();
     let import = import_package_versions(
@@ -434,6 +447,7 @@ fn out_of_order_snapshots_are_sorted_with_a_warning() {
 
 #[test]
 fn a_duplicate_snapshot_label_is_an_error_entry() {
+    crate::install_surfaces();
     let snapshots = vec![snapshot("1.0", V1_0), snapshot("1.0", V1_1)];
     let import = import_package_versions(&snapshots, "tcl9.0", &VersionedImportOptions::default());
     assert_eq!(import.versions, vec!["1.0"]);
@@ -449,6 +463,7 @@ fn a_duplicate_snapshot_label_is_an_error_entry() {
 
 #[test]
 fn a_label_the_sources_contradict_is_warned_about_but_still_trusted() {
+    crate::install_surfaces();
     let snapshots = vec![snapshot("2.0", V1_0)];
     let import = import_package_versions(&snapshots, "tcl9.0", &VersionedImportOptions::default());
     assert_eq!(import.versions, vec!["2.0"]);
@@ -464,6 +479,7 @@ fn a_label_the_sources_contradict_is_warned_about_but_still_trusted() {
 
 #[test]
 fn the_json_carries_the_versions_the_commands_and_the_warnings() {
+    crate::install_surfaces();
     let import = imported(true);
     let value = import.to_json();
     assert_eq!(value["package"], json!("fakepkg"));
@@ -489,6 +505,7 @@ fn the_json_carries_the_versions_the_commands_and_the_warnings() {
 /// `package provide` version, because that is all one snapshot can say.
 #[test]
 fn the_single_snapshot_import_path_is_unchanged() {
+    crate::install_surfaces();
     let import = import_package(
         &[SourceFile {
             name: "pkg.tcl".to_owned(),
@@ -516,6 +533,7 @@ fn the_single_snapshot_import_path_is_unchanged() {
 /// release they lead up to.
 #[test]
 fn prerelease_labels_sort_and_survive_as_distinct_snapshots() {
+    crate::install_surfaces();
     let snapshots = vec![
         snapshot("1.0", V1_2),
         snapshot("1.0b1", V1_1),
@@ -558,6 +576,7 @@ fn prerelease_labels_sort_and_survive_as_distinct_snapshots() {
 /// the author can see which label was dropped and what it collided with.
 #[test]
 fn a_duplicate_spelt_two_ways_names_both_labels() {
+    crate::install_surfaces();
     let snapshots = vec![snapshot("1.0", V1_0), snapshot("1.0.0", V1_1)];
     let import = import_package_versions(&snapshots, "tcl9.0", &VersionedImportOptions::default());
     assert_eq!(import.versions, vec!["1.0"]);

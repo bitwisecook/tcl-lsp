@@ -63,6 +63,7 @@ rust/tcl-source
 rust/tcl-spec-hooks
 rust/tcl-spec-hooks-it
 rust/tcl-spec-studio
+rust/tcl-spec-studio-it
 rust/tcl-spectcl
 rust/tcl-sslictcl
 rust/tcl-syntax

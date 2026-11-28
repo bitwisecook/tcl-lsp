@@ -16,10 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl-spec-studio` integration tests assigned to CI shard 3, one module per
-//! former test binary, linked once instead of 2 times
-//! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
-//! module; a new top-level `tests/*.rs` is a binary of its own.
+//! `tcl-spec-studio`'s registry-reading tests, through its public API.
 
-mod spectcl_ports;
-mod versions;
+mod name_lookup_issue_witnesses;
+mod reference_doc;
+mod render_sweep;
+
+/// Installs the shipped command surfaces; every test calls it before its
+/// first registry read.
+fn install_surfaces() {
+    tcl_registry::install_shipped().expect("the shipped surface set installs");
+}

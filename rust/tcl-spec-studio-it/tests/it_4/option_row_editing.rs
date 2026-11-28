@@ -33,8 +33,8 @@
 //! scalar edits and leaves the flag defaulted where a control appears or
 //! disappears.
 
-const EDITORS_TS: &str = include_str!("../../web/src/editors.ts");
-const STUDIO_TS: &str = include_str!("../../web/src/studio.ts");
+const EDITORS_TS: &str = include_str!("../../../tcl-spec-studio/web/src/editors.ts");
+const STUDIO_TS: &str = include_str!("../../../tcl-spec-studio/web/src/studio.ts");
 
 /// Strip whitespace so an assertion survives reformatting.
 fn squashed(text: &str) -> String {
@@ -43,6 +43,7 @@ fn squashed(text: &str) -> String {
 
 #[test]
 fn the_setter_can_report_a_change_as_non_structural() {
+    crate::install_surfaces();
     assert!(
         squashed(EDITORS_TS).contains("exporttypeSetter=(next:Json,structural?:boolean)=>void;"),
         "`Setter` must carry the optional `structural` flag — without it a \
@@ -53,6 +54,7 @@ fn the_setter_can_report_a_change_as_non_structural() {
 
 #[test]
 fn a_rebuild_only_happens_for_a_structural_change() {
+    crate::install_surfaces();
     // The gate itself. `structural` defaults to true at the call site, so an
     // editor that never passes it keeps rebuilding on every change.
     assert!(
@@ -65,6 +67,7 @@ fn a_rebuild_only_happens_for_a_structural_change() {
 
 #[test]
 fn option_row_text_edits_are_marked_non_structural() {
+    crate::install_surfaces();
     let src = squashed(EDITORS_TS);
     // The option's own name and detail, the value's hint, and the arity hook —
     // every free-text box in the row.
@@ -90,6 +93,7 @@ fn option_row_text_edits_are_marked_non_structural() {
 
 #[test]
 fn switching_the_arity_kind_still_rebuilds() {
+    crate::install_surfaces();
     // Toggling One/Fixed/Hook shows and hides the `n` and `hook fn` inputs, so
     // that one *must* rebuild — the flag is left defaulted.
     let src = squashed(EDITORS_TS);
@@ -105,6 +109,7 @@ fn switching_the_arity_kind_still_rebuilds() {
 
 #[test]
 fn option_effect_edits_are_marked_non_structural() {
+    crate::install_surfaces();
     let src = squashed(EDITORS_TS);
     assert!(
         src.contains("patchEffect({...effect,family:t},false)"),
@@ -115,6 +120,7 @@ fn option_effect_edits_are_marked_non_structural() {
 
 #[test]
 fn switching_the_effect_kind_still_rebuilds() {
+    crate::install_surfaces();
     // `disables`/`selects` show an axis and value picker, `suppresses-role`
     // a role picker, `reserves-trailing-words` a count, and `ends-options`
     // nothing else — so switching the kind *must* rebuild the row, unlike

@@ -9,9 +9,6 @@ tcl-irule-test	lib	43	1 direct, 42 via the poisoned cache
 bpf-tcl-ir	lib	62	1 direct, 61 via the poisoned cache
 tcl-engine-tclvm	lib	61	55 direct, 6 via the poisoned cache
 tcl-spec-studio	lib	108	39 direct, 69 via the poisoned cache
-tcl-spec-studio	it_2	3	1 direct, 2 via the poisoned cache
-tcl-spec-studio	it_3	24	1 direct, 23 via the poisoned cache
-tcl-spec-studio	it_4	14	10 direct, 4 via the poisoned cache
 tcl-spectcl	lib	106	27 direct, 79 via the poisoned cache
 tcl-spectcl	eval_loader	29	28 direct, 1 via the poisoned cache
 tcl-spectcl	golden_packs	2	2 direct, 0 via the poisoned cache

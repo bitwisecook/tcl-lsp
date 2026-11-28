@@ -738,7 +738,7 @@ Four rules the output must satisfy:
 
 ### Verifying the output compiles
 
-`rust/tcl-spec-studio/tests/it_2/render_sweep.rs` renders every command in every browsable dialect and
+`rust/tcl-spec-studio-it/tests/it_2/render_sweep.rs` renders every command in every browsable dialect and
 asserts the structural invariants. Those assertions cannot prove the result is
 valid Rust. The real check is to render the specs into the registry and build
 it; the procedure is at the top of that test file.

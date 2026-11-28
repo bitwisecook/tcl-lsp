@@ -122,6 +122,7 @@ fn hook_bodies(source: &str, command: &str) -> Vec<String> {
 /// Opening a hand-written pack yields its commands, and keeps its bytes.
 #[test]
 fn every_shipped_example_opens_as_a_store() {
+    crate::install_surfaces();
     for (name, source) in examples() {
         let store = PackStore::from_source(&source);
         assert_eq!(store.source(), source, "{name}: the document is the store");
@@ -143,6 +144,7 @@ fn every_shipped_example_opens_as_a_store() {
 /// A form edit on a real pack splices, and damages nothing else.
 #[test]
 fn a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours() {
+    crate::install_surfaces();
     let mut spliced = 0_usize;
     let mut carried = 0_usize;
     for (name, source) in examples() {
@@ -248,6 +250,7 @@ fn a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours() {
 /// says which of the two is live.
 #[test]
 fn the_resolution_facade_answers_over_a_real_pack() {
+    crate::install_surfaces();
     let (_, lsort) = examples()
         .into_iter()
         .find(|(name, _)| name == "lsort.tclspec")
@@ -287,6 +290,7 @@ fn the_resolution_facade_answers_over_a_real_pack() {
 /// it from and [`PackStore::canonical`] has to put it back.
 #[test]
 fn canonical_rendering_preserves_a_real_packs_shape_and_override_flags() {
+    crate::install_surfaces();
     for (name, source) in examples() {
         let store = PackStore::from_source(&source);
         let canonical = PackStore::from_source(store.canonical());
@@ -320,6 +324,7 @@ fn canonical_rendering_preserves_a_real_packs_shape_and_override_flags() {
 /// trust.
 #[test]
 fn every_hand_written_pack_is_canonical() {
+    crate::install_surfaces();
     let shipped: Vec<(String, String)> =
         fs::read_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs"))
             .expect("the specs directory")
@@ -366,6 +371,7 @@ fn every_hand_written_pack_is_canonical() {
 /// back said it was in neither the pack nor the registry.
 #[test]
 fn a_stray_word_outside_the_block_is_not_a_program() {
+    crate::install_surfaces();
     let base = PackStore::empty("mylib").source().to_owned();
     for stray in ["command", "foo bar", "command\nfoo bar"] {
         let source = format!("{base}\n{stray}\n");
@@ -433,6 +439,7 @@ fn a_stray_word_outside_the_block_is_not_a_program() {
 /// A programmed document retains an independent patch declaration for lookup.
 #[test]
 fn a_patched_command_resolves_through_the_patch() {
+    crate::install_surfaces();
     let source = "\
 speclib mylib 2.0 {
     foreach name {alpha beta} {

@@ -839,7 +839,7 @@ frozen-syntax memo's coverage matrix, the renderer emitting it, and
 (`rust/tcl-spec-studio/src/store.rs` reports the grammar itself, and the
 form shows its rows read-only).
 
-**Tests.** `rust/tcl-spec-studio/tests/it_3/spectcl_ports.rs`'s
+**Tests.** `rust/tcl-spec-studio-it/tests/it_3/spectcl_ports.rs`'s
 `the_clause_grammar_derivation_agrees_with_the_shipped_walk` holds the `if`
 and `foreach` ports' grammars to the shipped ones and walks each call corpus
 through both, including the two subtle `if` rows (`if else {a}` is valid; a
@@ -1500,7 +1500,7 @@ separate field at all.
 **The studio field.** Neither `pattern_arg_resolver` nor the option
 effects has a `GAPS` row: the resolver is an escape hatch no shipped spec
 sets, and `option -effect` / `option_effect_family` are in the option-row
-form with the loader spelling (`rust/tcl-spec-studio/tests/it_4/option_row_editing.rs`
+form with the loader spelling (`rust/tcl-spec-studio-it/tests/it_4/option_row_editing.rs`
 is that form's gate): an option row's `effect` is drafted and written back,
 and `option_effect_families` has its generator and reverse parser.
 
@@ -2490,9 +2490,9 @@ flowchart LR
 - `rust/tcl-cshim-it/tests/it_5/sandbox_isolation.rs` — a pack program and a hook body cannot reach a shimmed command or `load`
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack loaded, analysed, and run through the hook host at budget; a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, the gate the argument-role hook body keeps
-- `rust/tcl-spec-studio/tests/it_3/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, over the two ports and every grammar-carrying command's round trip
-- `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` — the round trip that carries `semantic_operation`, `definition_body` and `alias_of` (`alias_of_survives_the_round_trip`) with no `GAPS` row
-- `rust/tcl-spec-studio/tests/it_4/option_row_editing.rs` — the option-row form with `-effect` and `option_effect_family`
+- `rust/tcl-spec-studio-it/tests/it_3/spectcl_ports.rs` — `the_clause_grammar_derivation_agrees_with_the_shipped_walk`, over the two ports and every grammar-carrying command's round trip
+- `rust/tcl-spec-studio-it/tests/it_4/spectcl_roundtrip.rs` — the round trip that carries `semantic_operation`, `definition_body` and `alias_of` (`alias_of_survives_the_round_trip`) with no `GAPS` row
+- `rust/tcl-spec-studio-it/tests/it_4/option_row_editing.rs` — the option-row form with `-effect` and `option_effect_family`
 - `rust/tcl-spectcl/tests/it_5/registry_sweep.rs` — the descriptor agreement rules, beside `repeated_arg_layouts_never_pair_conditional_binding_with_an_ssa_def_role`, and `the_extension_default_is_at_the_top_of_every_axis`
 - `rust/tcl-registry/tests/it_5/tcl91_dialect.rs` — the availability of `subst`'s positive option family
 - `rust/tcl-compiler/tests/it_4/mro_lattice_adversarial.rs`, `analyser.rs`, `cfg.rs` — the hierarchy, member, and clause behavioural parity gates

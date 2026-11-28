@@ -16,11 +16,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! `tcl-spec-studio` integration tests assigned to CI shard 2, one module per
-//! former test binary, linked once instead of 3 times
-//! (`scripts/dev/rust-test-binary-shards.tsv`). Add a test file here as a
-//! module; a new top-level `tests/*.rs` is a binary of its own.
-
-mod name_lookup_issue_witnesses;
-mod reference_doc;
-mod render_sweep;
+//! No library code: `tcl-spec-studio`'s tests that read the command registry. They
+//! install the surfaces they read, so `tcl-spec-studio` itself needs no surface crate
+//! to test.

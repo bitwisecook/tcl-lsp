@@ -30,6 +30,7 @@ fn doc_path() -> PathBuf {
 
 #[test]
 fn fields_doc_matches_the_schema() {
+    crate::install_surfaces();
     let rendered = tcl_spec_studio::reference::render_fields_doc();
     let path = doc_path();
     if std::env::var_os("UPDATE_REFERENCE").is_some() {

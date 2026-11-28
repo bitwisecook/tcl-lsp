@@ -96,6 +96,7 @@ fn delimiters_balanced(source: &str) -> bool {
 
 #[test]
 fn every_command_in_every_dialect_renders() {
+    crate::install_surfaces();
     let mut rendered = 0usize;
     let mut rendered_specs: HashMap<*const tcl_registry::CommandSpec, String> = HashMap::new();
     for (dialect, _) in browsable_dialects() {
@@ -160,6 +161,7 @@ fn every_command_in_every_dialect_renders() {
 
 #[test]
 fn a_default_draft_renders_a_minimal_but_complete_spec() {
+    crate::install_surfaces();
     let mut d = draft::default_command_draft();
     d.insert("name".into(), serde_json::json!("mycommand"));
     let source = render_rs::render(&d);

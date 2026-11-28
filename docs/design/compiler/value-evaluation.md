@@ -2155,8 +2155,8 @@ entry, and five gates hold them together:
 | `rust/tcl-spec-studio/src/coverage.rs`'s exhaustive destructuring witness | fails to compile until `semantics`, `evaluate`, and `facts` are surfaced or marked `Surface::Excluded` with a reason |
 | `native_hook_tables_cover_their_catalogues` | one row per family, including the three route fields |
 | `value_tables_cover_their_catalogues` | one row per closed vocabulary: the route kinds, the `-outcome` words, the `depends` words, and the `-evaluate-reason` words |
-| `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` | a rendered-then-reloaded draft differs from its source only on `GAPS` keys; `export.rs` round-trips bodies verbatim as it does for `const_fold` |
-| `rust/tcl-spec-studio/tests/it_2/reference_doc.rs` | `docs/references/command-spec/fields.md` is regenerated from the studio schema, so the three fields' help text is one string in `rust/tcl-spec-studio/src/help.rs` and not two |
+| `rust/tcl-spec-studio-it/tests/it_4/spectcl_roundtrip.rs` | a rendered-then-reloaded draft differs from its source only on `GAPS` keys; `export.rs` round-trips bodies verbatim as it does for `const_fold` |
+| `rust/tcl-spec-studio-it/tests/it_2/reference_doc.rs` | `docs/references/command-spec/fields.md` is regenerated from the studio schema, so the three fields' help text is one string in `rust/tcl-spec-studio/src/help.rs` and not two |
 
 The studio has a route picker and a body box —
 `schema.rs`'s `route` and `body` `NestedFieldSchema` rows under
@@ -2235,8 +2235,8 @@ implementation against the library's real behaviour.
 - `rust/tcl-spectcl/tests/spec_corpus.rs` — every shipped pack's hooks through the sandboxed host at budget: a loading and containment gate, not a value oracle
 - `rust/tcl-spectcl/src/loader.rs` — `native_hook_tables_cover_their_catalogues`, `value_tables_cover_their_catalogues`
 - `rust/tcl-registry/src/value_transfer/reference_body.rs` — `every_command_the_registry_knows_is_refused_unless_the_whitelist_lists_it`, the scan's refusals; `rust/tcl-spectcl/src/loader/reference.rs` — `the_scans_whitelist_is_the_hosts`; `rust/tcl-spectcl/tests/pack_source_e2e.rs` — `a_reference_body_answers_through_the_host_as_the_procedure_does`, the parity of a derived body with the procedure it came from, and `a_derived_body_runs_under_the_release_the_call_is_analysed_under`, the rows that hold against each release's own `tclsh`; `rust/tcl-engine-tclvm/src/lib.rs` — `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called`
-- `rust/tcl-spec-studio/tests/it_4/spectcl_roundtrip.rs` — the four-surface round trip
-- `rust/tcl-spec-studio/tests/it_2/reference_doc.rs` — the generated field reference
+- `rust/tcl-spec-studio-it/tests/it_4/spectcl_roundtrip.rs` — the four-surface round trip
+- `rust/tcl-spec-studio-it/tests/it_2/reference_doc.rs` — the generated field reference
 - `rust/tcl-vm-it/tests/it_5/dict_canonicalisation_parity.rs` — the list-rendering parity the folders depend on
 - `rust/tcl-spec-hooks-it/tests/it_3/containment_e2e.rs` — `a_body_with_a_global_counter_answers_identically_on_every_call`: the `fold [incr ::counter]` body raises under `Engine::confine_stores`, so every call answers alike
 - `rust/tcl-regex/tests/it_2/precision_oracle.rs` — the regexp precision witnesses, the `^(a+)+\1$` / `^(a+)+b$` pair among them

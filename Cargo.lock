@@ -5282,6 +5282,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-spec-studio-it"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-dialect",
+ "tcl-registry",
+ "tcl-spec-studio",
+ "tcl-spectcl",
+]
+
+[[package]]
 name = "tcl-spectcl"
 version = "0.1.0"
 dependencies = [
