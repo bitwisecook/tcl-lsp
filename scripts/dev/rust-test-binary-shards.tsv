@@ -134,6 +134,8 @@
 4	tcl-bytecode-tables::it_4	test	tcl-bytecode-tables	it_4
 4	tcl-cli	lib	tcl-cli	tcl_cli
 4	tcl-cli-support	lib	tcl-cli-support	tcl_cli_support
+4	tcl-cli-support-it	lib	tcl-cli-support-it	tcl_cli_support_it
+4	tcl-cli-support-it::it_4	test	tcl-cli-support-it	it_4
 4	tcl-cli::bin/tcl	bin	tcl-cli	tcl
 4	tcl-cli::cli	test	tcl-cli	cli
 4	tcl-codegen::codegen_depth	test	tcl-codegen	codegen_depth

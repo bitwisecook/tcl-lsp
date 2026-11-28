@@ -533,7 +533,6 @@ fn expand_user(path: &Path) -> PathBuf {
 mod tests {
 
     use super::{iter_directory_sources, known_dialect_names, resolve_dialect};
-    use tcl_dialect::model::EnvironmentRegistry;
 
     #[test]
     fn explicit_irules_alias_resolves_to_the_canonical_profile() {
@@ -542,43 +541,6 @@ mod tests {
             .expect("an explicit dialect resolves");
         assert_eq!(profile.name, "f5-irules");
         assert!(profile.is_irules());
-    }
-
-    #[test]
-    fn explicit_set_only_dialect_resolves_at_cli_ingress() {
-        let profile = resolve_dialect(Some("tk"))
-            .expect("recognized set-only dialect")
-            .expect("an explicit dialect resolves");
-        assert_eq!(profile.name, "tk");
-        assert!(!profile.is_fallback());
-        assert!(profile.hosts_tk());
-        // The retired `availability_for_name` validator's answer, taken
-        // from the resolved environment's document authoring point.
-        assert!(
-            crate::environment::context_for_dialect("tk")
-                .authoring_query()
-                .carries("Tk")
-        );
-    }
-
-    #[test]
-    fn unknown_explicit_dialect_is_an_input_error() {
-        let error = resolve_dialect(Some("not-a-real-dialect"))
-            .expect_err("an unknown spelling must not fall back");
-        let message = error.to_string();
-        assert!(
-            message.starts_with("unknown dialect `not-a-real-dialect`; valid names are "),
-            "unexpected message: {message}"
-        );
-        for environment in EnvironmentRegistry::compiled_selectable() {
-            assert!(
-                message.contains(environment.id.as_str()),
-                "message omits `{}`: {message}",
-                environment.id
-            );
-        }
-        assert!(message.contains("jim"), "message omits `jim`: {message}");
-        assert!(message.contains("tk"), "message omits `tk`: {message}");
     }
 
     /// The names the unknown-dialect message lists are the live registry's
@@ -592,29 +554,6 @@ mod tests {
             .collect();
         let listed = known_dialect_names();
         assert_eq!(listed.split(", ").collect::<Vec<_>>(), expected);
-    }
-
-    /// The language ids an environment lists as selecting it are dialect
-    /// names too, though no argument parser knows them.
-    #[test]
-    fn a_selecting_language_id_resolves() {
-        for (name, canonical) in [
-            ("tcl-bpf", "bpf"),
-            ("tcl-libero", "microchip-libero-eda-tcl"),
-            ("tcl-spec", "spectcl"),
-            ("tcl-apl", "f5-iapps"),
-        ] {
-            let profile = resolve_dialect(Some(name))
-                .unwrap_or_else(|error| panic!("`{name}` resolves: {error}"))
-                .expect("an explicit dialect resolves");
-            assert_eq!(
-                profile.name,
-                crate::environment::known_profile_for_dialect(canonical)
-                    .expect("the canonical id resolves")
-                    .name,
-                "{name}"
-            );
-        }
     }
 
     #[cfg(unix)]
