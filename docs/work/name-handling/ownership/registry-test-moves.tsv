@@ -10,15 +10,6 @@ bpf-tcl-ir	lib	62	1 direct, 61 via the poisoned cache
 tcl-engine-tclvm	lib	61	55 direct, 6 via the poisoned cache
 tcl-spec-studio	lib	108	39 direct, 69 via the poisoned cache
 tcl-spectcl	lib	106	27 direct, 79 via the poisoned cache
-tcl-spectcl	eval_loader	29	28 direct, 1 via the poisoned cache
-tcl-spectcl	golden_packs	2	2 direct, 0 via the poisoned cache
-tcl-spectcl	hook_plan_republish	1	1 direct, 0 via the poisoned cache
-tcl-spectcl	it_2	31	10 direct, 21 via the poisoned cache
-tcl-spectcl	it_3	30	6 direct, 24 via the poisoned cache
-tcl-spectcl	it_4	16	9 direct, 7 via the poisoned cache
-tcl-spectcl	it_5	105	11 direct, 94 via the poisoned cache
-tcl-spectcl	pack_source_e2e	9	4 direct, 5 via the poisoned cache
-tcl-spectcl	spec_corpus	4	2 direct, 2 via the poisoned cache
 tcl-codegen	lib	564	404 direct, 160 via the poisoned cache
 tcl-codegen	codegen_depth	53	53 direct, 0 via the poisoned cache
 tcl-codegen	codegen_integration	20	18 direct, 2 via the poisoned cache

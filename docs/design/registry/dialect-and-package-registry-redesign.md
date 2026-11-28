@@ -234,7 +234,7 @@ into their brace group. Only parse failures count (`::errorCode` `NONE`).
 The gate is mutation-tested: an unbalanced `[` inside one `command` body
 fails it.
 
-**Does the VM execute them?** `rust/tcl-spectcl/tests/eval_loader.rs`
+**Does the VM execute them?** `rust/tcl-spectcl-it/tests/eval_loader.rs`
 loads every bundled pack twice — once captured from its parse tree, once
 executed statement by statement by `tcl-vm` — and requires byte-identical
 `command_entry_json` per declared command; the same test does it for the
@@ -900,7 +900,7 @@ capability-specific:
   **every** tier — set-valued security facts union, single-valued ones
   keep the shipped value — so a four-line workspace pack declaring
   `command exec -override { arity 1.. }` cannot strip `exec`'s
-  `TAINT_SINK` (`rust/tcl-spectcl/tests/it_2/i6_security_floor.rs`). The floor
+  `TAINT_SINK` (`rust/tcl-spectcl-it/tests/it_2/i6_security_floor.rs`). The floor
   is deliberately not tier-keyed, and stays so now that the editor's
   Workspace Trust state reaches discovery: it is a security contract over
   every tier rather than a trust ranking between them;

@@ -284,8 +284,8 @@ impl PackStore {
     /// a program, and the studio browses the *snapshot* it registered rather
     /// than the text that registered it. For a canonical pack — every pack
     /// shipped today — nothing observable changes, which is what the golden
-    /// gate (`tcl-spectcl/tests/golden_packs.rs`), the fast-path gate
-    /// (`tcl-spectcl/tests/eval_loader.rs`) and the studio's own round-trip
+    /// gate (`tcl-spectcl-it/tests/golden_packs.rs`), the fast-path gate
+    /// (`tcl-spectcl-it/tests/eval_loader.rs`) and the studio's own round-trip
     /// suite hold this to.
     #[must_use]
     pub fn from_source_at_tier(source: impl Into<String>, tier: Tier) -> Self {

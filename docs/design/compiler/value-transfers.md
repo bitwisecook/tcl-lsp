@@ -3160,7 +3160,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/optimiser/branch_folding.rs` — `switch_dispatch_branches_are_skipped`
 - `rust/tcl-compiler/src/optimiser/propagation.rs` — `o103_folds_implicit_return_proc_cmd_subst`, `o103_folds_arg_sensitive_passthrough_cmd_subst`
 - `rust/tcl-registry/tests/it_4/differential_fold.rs` — every fold against a real `tclsh`
-- `rust/tcl-spectcl/tests/it_4/analyser_hooks.rs` — the pinned-set shape
+- `rust/tcl-spectcl-it/tests/it_4/analyser_hooks.rs` — the pinned-set shape
 - `rust/tcl-compiler/src/analyser/diagnostics/tests.rs` — `info_exists_*`, `emit_cfg_ssa_diagnostics_w210_*`, `emit_cfg_ssa_diagnostics_w213_*`, `w102_*`: the existence, read-before-set, and template-word answers
 - `rust/tcl-compiler/src/sccp.rs` — `existence_fold_abstains_*`, `upframe_body_models_*`, `sccp_folds_post_loop_branch_via_static_summary`
 - `rust/tcl-compiler/src/static_loops.rs` — `summarise_*`: the bounded `for` simulation's answers over the enumeration
@@ -3172,7 +3172,7 @@ unit-level lattice evaluates.
 - `rust/tcl-compiler/src/lowering/mod.rs`, `specialise_factories.rs`, `rust/tcl-lsp-core/src/refactor/extract_proc.rs` — `proc_subst_nocommands_*`, `detects_*`, `rejects_factory_with_computed_subst_switch`, `tp_a_substituting_call_can_switch_its_variable_reads_off`, `tp_a_substituted_bracket_*`: the four template consumers
 
 - `rust/tcl-compiler/src/interprocedural/transfer/source_context/native.rs` — exact Native receiver/SSA ownership and child refusal controls
-- `rust/tcl-spectcl/tests/it_5/native_normal_store.rs` — real pack Implementation outcomes at the original Native parent store
+- `rust/tcl-spectcl-it/tests/it_5/native_normal_store.rs` — real pack Implementation outcomes at the original Native parent store
 
 ## Related docs
 

@@ -65,6 +65,7 @@ rust/tcl-spec-hooks-it
 rust/tcl-spec-studio
 rust/tcl-spec-studio-it
 rust/tcl-spectcl
+rust/tcl-spectcl-it
 rust/tcl-sslictcl
 rust/tcl-syntax
 rust/tcl-test-support

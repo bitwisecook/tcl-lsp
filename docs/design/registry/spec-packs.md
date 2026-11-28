@@ -116,7 +116,7 @@ of 15 loads, release build:
 - **The static fast path is what makes evaluation affordable.** Executing
   the corpus as Tcl costs 3.4 s against 0.26 s: a wholly declarative pack
   is captured from its parse tree instead, and
-  `rust/tcl-spectcl/tests/eval_loader.rs` loads every shipped pack both
+  `rust/tcl-spectcl-it/tests/eval_loader.rs` loads every shipped pack both
   ways and asserts the snapshots are identical. A pack that templates its
   registrations pays the interpreter for the part that needs one.
 
@@ -373,7 +373,7 @@ overlay, so the analyser always finds the context its key names.
 
 ### The corpus-validation harness
 
-`rust/tcl-spectcl/tests/spec_corpus.rs` is the gate over **every
+`rust/tcl-spectcl-it/tests/spec_corpus.rs` is the gate over **every
 `.tclspec` the repository ships** — the eight bundled loadables under
 `specs/`, the twelve ports and the five external drafts under
 [`spec-dsl-examples/`](../spec-dsl-examples/). Per pack it loads through the
@@ -483,7 +483,7 @@ A `Lifecycle` must be internally ordered (introduced ≤ deprecated <
 retired, where each is present) and a child's declared releases must fall
 inside its parent's window. Both properties are checked at two strengths:
 
-- **Shipped specs — a hard gate.** `rust/tcl-spectcl/tests/it_5/registry_sweep.rs`
+- **Shipped specs — a hard gate.** `rust/tcl-spectcl-it/tests/it_5/registry_sweep.rs`
   walks every compiled-in command, recursing into every level, and asserts
   both properties (`Lifecycle::validate`, `Lifecycle::intersect`). A
   shipped spec with an invalid or non-contained lifecycle fails the suite.

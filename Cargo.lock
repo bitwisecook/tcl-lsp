@@ -5297,12 +5297,9 @@ name = "tcl-spectcl"
 version = "0.1.0"
 dependencies = [
  "rustc-hash",
- "tcl-codegen",
  "tcl-compiler",
  "tcl-core-types",
  "tcl-dialect",
- "tcl-engine-api",
- "tcl-engine-tclvm",
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-names",
@@ -5313,12 +5310,33 @@ dependencies = [
  "tcl-source",
  "tcl-spec-hooks",
  "tcl-spectcl",
- "tcl-sslictcl",
  "tcl-syntax",
  "tcl-test-support",
  "tcl-userdirs",
- "tcl-vm",
  "xxhash-rust",
+]
+
+[[package]]
+name = "tcl-spectcl-it"
+version = "0.1.0"
+dependencies = [
+ "tcl-codegen",
+ "tcl-compiler",
+ "tcl-core-types",
+ "tcl-dialect",
+ "tcl-engine-api",
+ "tcl-engine-tclvm",
+ "tcl-lsp-core",
+ "tcl-native-model",
+ "tcl-pkg-model",
+ "tcl-registry",
+ "tcl-runtime-api",
+ "tcl-spec-hooks",
+ "tcl-spectcl",
+ "tcl-sslictcl",
+ "tcl-syntax",
+ "tcl-test-support",
+ "tcl-vm",
 ]
 
 [[package]]

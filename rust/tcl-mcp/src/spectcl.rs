@@ -130,7 +130,7 @@ fn ctx_key_in_shape(key: &str) -> bool {
 /// back as a budget notice rather than a hung tool.
 ///
 /// A straight-line declarative pack reports exactly what it always did: the
-/// golden gate (`tcl-spectcl/tests/golden_packs.rs`) holds every shipped pack
+/// golden gate (`tcl-spectcl-it/tests/golden_packs.rs`) holds every shipped pack
 /// to its checked-in snapshot and notices. What evaluation adds is what only
 /// evaluation can see — [`load_error`](tcl_spectcl::LoadError) for the four transactional
 /// failures (a determinism denial naming its axis, a blown budget naming its

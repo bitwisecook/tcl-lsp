@@ -394,7 +394,7 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
 
 - `rust/tcl-lsp-server/tests/e2e.rs` and its `e2e/` module tree — native LSP
   end-to-end, one module per feature area sharing a single test binary.
-- `rust/tcl-spectcl/tests/it_5/registry_sweep.rs`, `registry_commands.rs` — the
+- `rust/tcl-spectcl-it/tests/it_5/registry_sweep.rs`, `registry_commands.rs` — the
   registry generates real Tcl and iRules and asserts live analysis (arity
   E002/E003, subcommands E001/W001, event scoping IRULE1001/1002, ordering).
   Contract: [registry-contract-tests.md](registry-contract-tests.md).

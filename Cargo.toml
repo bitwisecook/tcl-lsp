@@ -66,6 +66,7 @@ members = [
     "rust/tcl-registry",
     "rust/tcl-bigip-schema",
     "rust/tcl-spectcl",
+    "rust/tcl-spectcl-it",
     "rust/tcl-sslictcl",
     "rust/tcl-regex",
     "rust/tcl-compiler",

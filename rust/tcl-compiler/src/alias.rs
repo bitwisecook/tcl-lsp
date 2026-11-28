@@ -313,7 +313,7 @@ mod tests {
     /// through `interp alias` internally. The stock resolver must read that as
     /// "no alias stated" rather than inventing one out of the command's own
     /// arguments; before the shape guard the consumer-side detector aborted a
-    /// debug build outright (`tcl-spectcl/tests/spec_corpus.rs` caught it).
+    /// debug build outright (`tcl-spectcl-it/tests/spec_corpus.rs` caught it).
     #[test]
     fn a_call_that_is_not_interp_alias_shaped_states_no_alias() {
         let registry = CommandRegistry::build_default();

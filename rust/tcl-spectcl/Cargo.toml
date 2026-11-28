@@ -73,17 +73,9 @@ programmed-packs = ["dep:tcl-spec-hooks"]
 # `tcl_spec_hooks::tclvm_host`, and that stays the one place naming an engine.
 [dev-dependencies]
 tcl-names = { path = "../tcl-names" }
-tcl-sslictcl = { path = "../tcl-sslictcl" }
 # This crate's own tests run with `programmed-packs` on.
 tcl-spectcl = { path = ".", features = ["programmed-packs"] }
-tcl-codegen = { path = "../tcl-codegen" }
-tcl-engine-api = { path = "../tcl-engine-api" }
-tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
 tcl-test-support = { path = "../tcl-test-support" }
-# `tests/codegen_stamps.rs` compiles against a pack-installed registry and
-# runs the module on the VM, so the identity a stamp records is checked by
-# the VM's own admission rather than asserted about it.
-tcl-vm = { path = "../tcl-vm", features = ["test-support"] }
 
 [lints]
 workspace = true

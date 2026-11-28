@@ -29,7 +29,7 @@
 //!
 //! 1. **The vocabulary**, derived from the registry every loadable dialect
 //!    and the shipped `.tclspec` packs build together — the registry
-//!    `rust/tcl-spectcl/tests/it_4/analyser_hooks.rs` sweeps — so a word a pack
+//!    `rust/tcl-spectcl-it/tests/it_4/analyser_hooks.rs` sweeps — so a word a pack
 //!    adds joins the lint with no edit here.
 //! 2. **A source lint** over the analysis and tooling tiers (the roots the
 //!    value-transfer gate scans). A vocabulary word is a site when it is the
@@ -444,7 +444,7 @@ fn has_single_value_field(fields: &syn::Fields, payload: &str) -> bool {
 // The vocabulary
 
 /// The compiled-in dialects whose packs the registry merges — the list
-/// `rust/tcl-spectcl/tests/it_4/analyser_hooks.rs` sweeps.
+/// `rust/tcl-spectcl-it/tests/it_4/analyser_hooks.rs` sweeps.
 const LOADABLE_DIALECTS: &[&str] = &[
     "tcl8.4",
     "tcl8.5",

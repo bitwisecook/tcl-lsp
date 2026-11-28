@@ -532,7 +532,7 @@ and operand-admissibility gates, volatile and versioned-world results, and the
 decline paths (no selected dialect, opaque structured source).
 `rust/tcl-compiler/src/compiler_checks.rs` pins the advisory tier — a
 proof-gated `O105` is a hint with no replacement and no fixes.
-`rust/tcl-spectcl/tests/it_5/registry_sweep.rs` sweeps the registry itself: a
+`rust/tcl-spectcl-it/tests/it_5/registry_sweep.rs` sweeps the registry itself: a
 referentially transparent result claim must travel with closed world-effect and
 state-transition declarations, every CSE candidate must declare its result
 stability, and `CLOSED_REFERENTIALLY_TRANSPARENT` must resolve to exactly

@@ -284,7 +284,7 @@ identity a module compiled for its pin states, a context the ingress refuses
 leaves the pin unchanged, and the `trace` option table is the pinned
 profile's and not the plain release its runtime version names.
 
-`rust/tcl-spectcl/tests/it_5/codegen_stamps.rs` covers a bundled spec pack's
+`rust/tcl-spectcl-it/tests/it_5/codegen_stamps.rs` covers a bundled spec pack's
 `alias_of lassign` command: its specialised site records `lassign`'s
 identity and the pack's facts, the VM holding those facts admits it through
 the alias hop with no plain recompile, and a proc at the pack spelling, or
