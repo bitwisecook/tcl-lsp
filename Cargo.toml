@@ -87,6 +87,7 @@ members = [
     "rust/tcl-bigip-it",
     "rust/tcl-bigip-io",
     "rust/tcl-bigip-query",
+    "rust/tcl-bigip-query-it",
     "rust/bigip-report-gen/rust",
     "rust/tcl-f5mku",
     "rust/tcl-irules",

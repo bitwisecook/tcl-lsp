@@ -4473,6 +4473,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-bigip-query-it"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tcl-bigip",
+ "tcl-bigip-query",
+ "tcl-bigip-schema",
+ "tcl-registry",
+]
+
+[[package]]
 name = "tcl-bigip-schema"
 version = "0.1.0"
 dependencies = [

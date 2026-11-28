@@ -51,7 +51,8 @@ fn run(query: &str, mode: &str) -> Result<String, String> {
 
 #[test]
 fn graph() {
-    let raw = include_str!("../fixtures/graph.json");
+    crate::install();
+    let raw = include_str!("../../../tcl-bigip-query/tests/fixtures/graph.json");
     let cases: J = serde_json::from_str(raw).expect("fixture is valid JSON");
     let cases = cases.as_array().expect("fixture is an array");
     assert_ne!(cases.as_slice(), [] as [J; 0]);
@@ -87,6 +88,7 @@ fn graph() {
 /// referrer resolves rather than being missed by the single originating root.
 #[test]
 fn references_to_uses_merged_graph_in_merge_mode() {
+    crate::install();
     let conf_a = "ltm virtual /Common/vsA {\n    destination /Common/1.2.3.4:80\n    pool /Common/poolB\n}\n";
     let conf_b = "ltm pool /Common/poolB {\n    members none\n}\n";
     let cfg_a = parse_bigip_conf(conf_a, "Common");
@@ -217,6 +219,7 @@ fn run_merged(query: &str, sources: &[(&str, &str)]) -> Result<String, String> {
 /// and its target in different sources are compared.
 #[test]
 fn partition_visibility_audit_spans_merged_sources() {
+    crate::install();
     let out = run_merged(
         "check_partition_visibility()",
         &[
@@ -235,6 +238,7 @@ fn partition_visibility_audit_spans_merged_sources() {
 /// sibling source, the same as when both objects share one source.
 #[test]
 fn rename_partition_check_sees_referrers_in_sibling_sources() {
+    crate::install();
     let err = run_merged(
         r#"rename("/Common/shared_pool", "/Part2/shared_pool")"#,
         &[
@@ -258,6 +262,7 @@ fn rename_partition_check_sees_referrers_in_sibling_sources() {
 /// come back empty on the others.
 #[test]
 fn a_named_binding_sees_the_merged_namespace_on_every_iteration() {
+    crate::install();
     let sources = [
         ("file:///rule.conf", RULE_CONF),
         ("file:///pool.conf", RULE_POOL_CONF),
@@ -276,6 +281,7 @@ fn a_named_binding_sees_the_merged_namespace_on_every_iteration() {
 /// source.
 #[test]
 fn rule_refs_span_merged_sources() {
+    crate::install();
     let out = run_merged(
         ".ltm.rule[] | .refs.pools",
         &[

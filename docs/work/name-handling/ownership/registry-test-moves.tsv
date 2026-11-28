@@ -77,3 +77,6 @@ bpf-tcl	templates	8	1 direct, 7 via the poisoned cache; entry point (binary), ab
 bpf-tcl	xdp	7	1 direct, 6 via the poisoned cache; entry point (binary), above the catalogue: not moved
 tcl-bigip	lib	68	Fallback disabled; failures confirmed individually after cache poisoning.
 tcl-bigip	integration	17	Fallback disabled; failures confirmed individually.
+tcl-bigip-query	lib	0	Fallback disabled.
+tcl-bigip-query	integration	8	Fallback disabled; failures confirmed individually.
+tcl-bigip-query	x509_only	0	Fallback disabled.

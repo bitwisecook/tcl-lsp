@@ -503,6 +503,7 @@ fn compare_against_registry(
 
 #[test]
 fn projection_pathref_targets_agree_with_the_registry() {
+    crate::install();
     let accepted: BTreeSet<(&str, &str, &str)> = ACCEPTED_DIVERGENCE
         .iter()
         .map(|(kind, property, target, _why)| (*kind, *property, *target))

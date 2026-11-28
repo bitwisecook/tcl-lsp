@@ -65,6 +65,7 @@ on:
       - "rust/bigip-query-wasm/**"
       - "rust/bigip-report-gen/wasm/**"
       - "rust/tcl-bigip-query/**"
+      - "rust/tcl-bigip-query-it/**"
       - "rust/tcl-bigip/**"
       - "rust/tcl-bigip-it/**"
       - "rust/tcl-bigip-io/**"
