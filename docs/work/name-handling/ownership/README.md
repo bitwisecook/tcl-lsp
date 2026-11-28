@@ -43,6 +43,12 @@ for item 117a ([design](../../../design/registry/registry-split/117-native-model
 word view. `pending` rows have not moved yet; an extension-trait row is a
 selector over a core type that the orphan rule keeps out of an inherent impl.
 
+[Registry test moves](registry-test-moves.tsv) counts, per crate and test
+target, the tests that read the command registry without installing surfaces
+(item 264a): run with `TCL_REGISTRY_TEST_INSTALL=` empty, they panic with
+`NOT_INSTALLED`. A row shrinks as its tests move to an `-it` crate that
+installs the surfaces it reads, and goes when it reaches zero.
+
 [Host primitives](grammar-bypasses.tsv) records existing uses of host string
 operations in Tcl grammar consumers. The scanner works on Rust source tokens
 and uses the operation to identify the relevant grammar. Some recorded uses
